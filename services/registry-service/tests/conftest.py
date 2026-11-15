@@ -16,6 +16,7 @@ def db_path(tmp_path, monkeypatch):
     """בונה מסד חדש מ-seed לכל בדיקה, כך שהבדיקות לא משנות את registry.db האמיתי."""
     path = tmp_path / "registry.db"
     subprocess.run(["bash", str(SEED_SCRIPT), str(path)], check=True, cwd=SERVICE_DIR, capture_output=True)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setattr(database, "DB_PATH", path)
     return path
 
