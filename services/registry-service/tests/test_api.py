@@ -1,3 +1,5 @@
+import random
+import string
 from datetime import date, timedelta
 
 import pytest
@@ -55,8 +57,8 @@ def test_list_crops(client):
     response = client.get("/v1/crops")
     assert response.status_code == 200
     assert response.json() == [
-        {"id": "tomato", "name": "Tomato"},
         {"id": "bell-pepper", "name": "Bell pepper"},
+        {"id": "tomato", "name": "Tomato"},
     ]
 
 
@@ -334,6 +336,7 @@ def test_missing_database_returns_503_with_retry_after(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
     from main import app
 
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     missing = tmp_path / "does-not-exist.db"
     monkeypatch.setattr(database, "DB_PATH", missing)
     with TestClient(app) as client:
@@ -341,3 +344,115 @@ def test_missing_database_returns_503_with_retry_after(tmp_path, monkeypatch):
     assert_problem(response, 503, "UNAVAILABLE")
     assert response.headers["retry-after"] == "5"
     assert not missing.exists(), "a missing database must not be created silently"
+
+
+def test_list_endpoints_are_sorted_by_id(client):
+    for path in ("/v1/crops", "/v1/soils", "/v1/emitters", "/v1/farms", "/v1/plots"):
+        ids = [item["id"] for item in client.get(path).json()]
+        assert ids, path
+        assert ids == sorted(ids), path
+
+
+# --- Backend behavior (SQLite and PostgreSQL) ---
+
+def test_float_values_round_trip(client):
+    assert client.get("/v1/emitters/dripnet-pc-0.6").json()["flow_lph"] == 0.6
+    assert client.get(f"/v1/plots/{NORTH_BLOCK}").json()["lat"] == 31.25
+
+
+def test_nul_character_in_name_is_422_validation(client):
+    response = client.post("/v1/farms", json={"name": "a\u0000b"})
+    if database.backend() == "postgres":
+        assert_problem(response, 422, "VALIDATION")
+    else:
+        assert response.status_code == 201
+
+
+def _assert_unavailable(response):
+    assert_problem(response, 503, "UNAVAILABLE")
+    assert response.headers["retry-after"] == "5"
+
+
+def test_postgres_server_down_returns_503(monkeypatch):
+    from fastapi.testclient import TestClient
+    from main import app
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://postgres:x@127.0.0.1:1/registry")
+    with TestClient(app) as test_client:
+        _assert_unavailable(test_client.get("/v1/farms"))
+
+
+def test_postgres_wrong_password_returns_503(monkeypatch):
+    import os
+    from urllib.parse import urlsplit
+
+    from fastapi.testclient import TestClient
+    from main import app
+
+    url = os.environ.get("TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL is not set")
+    parts = urlsplit(url)
+    bad = url.replace(f"{parts.username}:{parts.password}@", f"{parts.username}:not-the-password@", 1)
+    assert bad != url
+    monkeypatch.setenv("DATABASE_URL", bad)
+    with TestClient(app) as test_client:
+        _assert_unavailable(test_client.get("/v1/farms"))
+
+
+def test_blank_database_url_uses_sqlite(db_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from main import app
+
+    monkeypatch.setenv("DATABASE_URL", "")
+    with TestClient(app) as test_client:
+        assert test_client.get("/v1/farms").status_code == 200
+
+
+# --- Long text and many rows ---
+
+def test_long_text_values_round_trip(client):
+    long_name = "x" * 1_000_000
+    created = client.post("/v1/farms", json={"name": long_name})
+    assert created.status_code == 201
+    fetched = client.get(f"/v1/farms/{created.json()['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["name"] == long_name
+
+    hebrew = "חוות שלום 🌱"
+    created = client.post("/v1/farms", json={"name": hebrew})
+    assert created.status_code == 201
+    assert client.get(f"/v1/farms/{created.json()['id']}").json()["name"] == hebrew
+
+
+def test_thousands_of_rows(client):
+    dependency = database.get_db()  # keep the generator, otherwise it closes the connection
+    db = next(dependency)
+    try:
+        for n in range(5000):
+            db.execute("INSERT INTO farms (id, name) VALUES (?, ?)", (f"00000000-0000-4000-8000-{n:012d}", f"Bulk farm {n}"))
+        db.commit()
+    finally:
+        dependency.close()
+
+    response = client.get("/v1/farms")
+    assert response.status_code == 200
+    ids = [farm["id"] for farm in response.json()]
+    assert len(ids) == 5002
+    assert ids == sorted(ids)
+
+
+def test_long_plot_name_is_not_limited(client):
+    rng = random.Random(0)
+    alphabet = string.ascii_letters + string.digits
+    long_name = "".join(rng.choice(alphabet) for _ in range(10_000))
+    other_name = "".join(rng.choice(alphabet) for _ in range(10_000))
+
+    created = client.post("/v1/plots", json=valid_plot(name=long_name))
+    assert created.status_code == 201
+    assert_problem(client.post("/v1/plots", json=valid_plot(name=long_name)), 409, "CONFLICT")
+
+    plot_id = client.post("/v1/plots", json=valid_plot(name="Short")).json()["id"]
+    renamed = client.patch(f"/v1/plots/{plot_id}", json={"name": other_name})
+    assert renamed.status_code == 200
+    assert renamed.json()["name"] == other_name
