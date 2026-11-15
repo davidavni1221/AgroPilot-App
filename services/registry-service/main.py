@@ -4,11 +4,12 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from datetime import date
 from typing import Optional
-import sqlite3
 import uuid
 
-from database import get_db
+from database import Db, get_db, backend, OPERATIONAL_ERRORS, INTEGRITY_ERRORS, DATA_ERRORS
 from models import Crop, Soil, Emitter, Farm, FarmCreate, FarmUpdate, Plot, PlotCreate, PlotUpdate
+
+backend()  # נכשל בעליה אם DATABASE_URL לא תקין
 
 app = FastAPI()
 
@@ -58,9 +59,14 @@ def validation_error_handler(request: Request, exc: RequestValidationError):
     return problem_response(422, "VALIDATION", "Unprocessable Entity", "; ".join(details))
 
 # כשל במסד הנתונים (קובץ חסר, נעול או לא נגיש) מוחזר כ-503 עם Retry-After
-@app.exception_handler(sqlite3.OperationalError)
-def db_unavailable_handler(request: Request, exc: sqlite3.OperationalError):
+def db_unavailable_handler(request: Request, exc: Exception):
     return problem_response(503, "UNAVAILABLE", "Service Unavailable", "Database is unavailable", headers={"Retry-After": "5"})
+
+for _exc_class in OPERATIONAL_ERRORS:
+    app.add_exception_handler(_exc_class, db_unavailable_handler)
+
+for _exc_class in DATA_ERRORS:
+    app.add_exception_handler(_exc_class, lambda request, exc: problem_response(422, "VALIDATION", "Unprocessable Entity", "Invalid value"))
 
 # --- API Endpoints ---
 @app.get("/health")
@@ -68,24 +74,24 @@ def health_check():
     return {"status": "ok"}
 
 @app.get("/v1/crops", response_model=list[Crop])
-def get_crops(db: sqlite3.Connection = Depends(get_db)):
-    rows = db.execute("SELECT id, name FROM crops").fetchall()
+def get_crops(db: Db = Depends(get_db)):
+    rows = db.execute("SELECT id, name FROM crops ORDER BY id").fetchall()
     return [dict(row) for row in rows]
     
 @app.get("/v1/crops/{id}", response_model=Crop)
-def get_crop(id: str, db: sqlite3.Connection = Depends(get_db)):
+def get_crop(id: str, db: Db = Depends(get_db)):
     row = db.execute("SELECT id, name FROM crops WHERE id = ?", (id,)).fetchone()
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Crop not found")
     return dict(row)
 # --- Soils ---
 @app.get("/v1/soils", response_model=list[Soil])
-def get_soils(db: sqlite3.Connection = Depends(get_db)):
-    rows = db.execute("SELECT id, name, available_water_mm_per_m FROM soils").fetchall()
+def get_soils(db: Db = Depends(get_db)):
+    rows = db.execute("SELECT id, name, available_water_mm_per_m FROM soils ORDER BY id").fetchall()
     return [dict(row) for row in rows]
 
 @app.get("/v1/soils/{id}", response_model=Soil)
-def get_soil(id: str, db: sqlite3.Connection = Depends(get_db)):
+def get_soil(id: str, db: Db = Depends(get_db)):
     row = db.execute("SELECT id, name, available_water_mm_per_m FROM soils WHERE id = ?", (id,)).fetchone()
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Soil not found")
@@ -93,37 +99,37 @@ def get_soil(id: str, db: sqlite3.Connection = Depends(get_db)):
 
 # --- Emitters ---
 @app.get("/v1/emitters", response_model=list[Emitter])
-def get_emitters(db: sqlite3.Connection = Depends(get_db)):
-    rows = db.execute("SELECT id, name, flow_lph FROM emitters").fetchall()
+def get_emitters(db: Db = Depends(get_db)):
+    rows = db.execute("SELECT id, name, flow_lph FROM emitters ORDER BY id").fetchall()
     return [dict(row) for row in rows]
 
 @app.get("/v1/emitters/{id}", response_model=Emitter)
-def get_emitter(id: str, db: sqlite3.Connection = Depends(get_db)):
+def get_emitter(id: str, db: Db = Depends(get_db)):
     row = db.execute("SELECT id, name, flow_lph FROM emitters WHERE id = ?", (id,)).fetchone()
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Emitter not found")
     return dict(row)
 # --- Farms ---
 @app.post("/v1/farms", response_model=Farm, status_code=201)
-def create_farm(farm_in: FarmCreate, db: sqlite3.Connection = Depends(get_db)):
+def create_farm(farm_in: FarmCreate, db: Db = Depends(get_db)):
     farm_id = str(uuid.uuid4())
     db.execute("INSERT INTO farms (id, name) VALUES (?, ?)", (farm_id, farm_in.name))
     db.commit()
     return {"id": farm_id, "name": farm_in.name}
 
 @app.get("/v1/farms", response_model=list[Farm])
-def get_farms(db: sqlite3.Connection = Depends(get_db)):
-    rows = db.execute("SELECT id, name FROM farms").fetchall()
+def get_farms(db: Db = Depends(get_db)):
+    rows = db.execute("SELECT id, name FROM farms ORDER BY id").fetchall()
     return [dict(row) for row in rows]
     
 @app.get("/v1/farms/{id}", response_model=Farm)
-def get_farm(id: str, db: sqlite3.Connection = Depends(get_db)):
+def get_farm(id: str, db: Db = Depends(get_db)):
     row = db.execute("SELECT id, name FROM farms WHERE id = ?", (id,)).fetchone()
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Farm not found")
     return dict(row)
 @app.patch("/v1/farms/{id}", response_model=Farm)
-def update_farm(id: str, farm_in: FarmUpdate, db: sqlite3.Connection = Depends(get_db)):
+def update_farm(id: str, farm_in: FarmUpdate, db: Db = Depends(get_db)):
     row = db.execute("SELECT id, name FROM farms WHERE id = ?", (id,)).fetchone()
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Farm not found")
@@ -140,33 +146,33 @@ def update_farm(id: str, farm_in: FarmUpdate, db: sqlite3.Connection = Depends(g
     return dict(row)
 
 @app.delete("/v1/farms/{id}", status_code=204, response_class=Response)
-def delete_farm(id: str, db: sqlite3.Connection = Depends(get_db)):
+def delete_farm(id: str, db: Db = Depends(get_db)):
     row = db.execute("SELECT id FROM farms WHERE id = ?", (id,)).fetchone()
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Farm not found")
         
-    plots_count = db.execute("SELECT COUNT(*) FROM plots WHERE farm_id = ?", (id,)).fetchone()[0]
+    plots_count = db.execute("SELECT COUNT(*) AS n FROM plots WHERE farm_id = ?", (id,)).fetchone()["n"]
     if plots_count > 0:
         raise APIError(409, "CONFLICT", "Conflict", "Delete a farm that still has plots")
         
     db.execute("DELETE FROM farms WHERE id = ?", (id,))
     db.commit()
 @app.get("/v1/plots", response_model=list[Plot])
-def get_plots(farm_id: Optional[str] = None, db: sqlite3.Connection = Depends(get_db)):
+def get_plots(farm_id: Optional[str] = None, db: Db = Depends(get_db)):
     if farm_id:
-        rows = db.execute("SELECT * FROM plots WHERE farm_id = ?", (farm_id,)).fetchall()
+        rows = db.execute("SELECT * FROM plots WHERE farm_id = ? ORDER BY id", (farm_id,)).fetchall()
     else:
-        rows = db.execute("SELECT * FROM plots").fetchall()
+        rows = db.execute("SELECT * FROM plots ORDER BY id").fetchall()
     return [dict(row) for row in rows]
         
 @app.get("/v1/plots/{id}", response_model=Plot)
-def get_plot(id: str, db: sqlite3.Connection = Depends(get_db)):
+def get_plot(id: str, db: Db = Depends(get_db)):
     row = db.execute("SELECT * FROM plots WHERE id = ?", (id,)).fetchone()
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Plot not found")
     return dict(row)    
 @app.post("/v1/plots", response_model=Plot, status_code=201)
-def create_plot(plot_in: PlotCreate, db: sqlite3.Connection = Depends(get_db)):
+def create_plot(plot_in: PlotCreate, db: Db = Depends(get_db)):
     # 1. בדיקה שהתאריך אינו בעתיד
     if plot_in.planting_date > date.today():
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Planting date cannot be in the future")
@@ -202,13 +208,13 @@ def create_plot(plot_in: PlotCreate, db: sqlite3.Connection = Depends(get_db)):
             plot_in.emitter_spacing_m, plot_in.emitter_id, plot_in.lat, plot_in.lon
         ))
         db.commit()
-    except sqlite3.IntegrityError:
+    except INTEGRITY_ERRORS:
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Invalid farm_id or constraints")
         
     row = db.execute("SELECT * FROM plots WHERE id = ?", (plot_id,)).fetchone()
     return dict(row)
 @app.patch("/v1/plots/{id}", response_model=Plot)
-def update_plot(id: str, plot_in: PlotUpdate, db: sqlite3.Connection = Depends(get_db)):
+def update_plot(id: str, plot_in: PlotUpdate, db: Db = Depends(get_db)):
     row = db.execute("SELECT * FROM plots WHERE id = ?", (id,)).fetchone()
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Plot not found")
@@ -250,7 +256,7 @@ def update_plot(id: str, plot_in: PlotUpdate, db: sqlite3.Connection = Depends(g
     return dict(updated_row)
 
 @app.delete("/v1/plots/{id}", status_code=204, response_class=Response)
-def delete_plot(id: str, db: sqlite3.Connection = Depends(get_db)):
+def delete_plot(id: str, db: Db = Depends(get_db)):
     row = db.execute("SELECT id FROM plots WHERE id = ?", (id,)).fetchone()
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Plot not found")

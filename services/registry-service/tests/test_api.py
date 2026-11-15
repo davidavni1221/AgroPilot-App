@@ -55,8 +55,8 @@ def test_list_crops(client):
     response = client.get("/v1/crops")
     assert response.status_code == 200
     assert response.json() == [
-        {"id": "tomato", "name": "Tomato"},
         {"id": "bell-pepper", "name": "Bell pepper"},
+        {"id": "tomato", "name": "Tomato"},
     ]
 
 
@@ -334,6 +334,7 @@ def test_missing_database_returns_503_with_retry_after(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
     from main import app
 
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     missing = tmp_path / "does-not-exist.db"
     monkeypatch.setattr(database, "DB_PATH", missing)
     with TestClient(app) as client:
@@ -341,3 +342,10 @@ def test_missing_database_returns_503_with_retry_after(tmp_path, monkeypatch):
     assert_problem(response, 503, "UNAVAILABLE")
     assert response.headers["retry-after"] == "5"
     assert not missing.exists(), "a missing database must not be created silently"
+
+
+def test_list_endpoints_are_sorted_by_id(client):
+    for path in ("/v1/crops", "/v1/soils", "/v1/emitters", "/v1/farms", "/v1/plots"):
+        ids = [item["id"] for item in client.get(path).json()]
+        assert ids, path
+        assert ids == sorted(ids), path
