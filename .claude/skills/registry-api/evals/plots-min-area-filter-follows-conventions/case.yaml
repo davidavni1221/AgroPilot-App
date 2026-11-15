@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: plots-min-area-filter-follows-conventions
+expected_outcome: |
+  GET /v1/plots?min_area_m2=900 returns only the plots of 900 m2 or more, nothing matching gives 200 and [], a non-numeric value gives 422 VALIDATION as application/problem+json, it combines with the farm_id filter, tests cover the filter, an empty result and invalid input, and uv run pytest passes.

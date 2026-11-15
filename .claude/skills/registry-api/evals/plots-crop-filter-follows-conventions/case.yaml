@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: plots-crop-filter-follows-conventions
+expected_outcome: |
+  GET /v1/plots?crop_id=tomato returns only the two tomato plots, an unknown crop returns 200 and [], the farm_id filter still works alone and combined, items have the same fields as before, tests cover the new filter, and uv run pytest passes.

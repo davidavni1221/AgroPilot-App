@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: farm-area-follows-conventions
+expected_outcome: |
+  A new /v1 route returns the farm's total plot area (1800 for the Demo cooperative). An unknown farm id gives 404 NOT_FOUND as application/problem+json, a farm without plots gives 200 with zero, tests cover success and 404, uv run pytest passes, and the agent says which choices the spec left open.
