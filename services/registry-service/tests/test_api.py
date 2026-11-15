@@ -349,3 +349,59 @@ def test_list_endpoints_are_sorted_by_id(client):
         ids = [item["id"] for item in client.get(path).json()]
         assert ids, path
         assert ids == sorted(ids), path
+
+
+# --- Backend behavior (SQLite and PostgreSQL) ---
+
+def test_float_values_round_trip(client):
+    assert client.get("/v1/emitters/dripnet-pc-0.6").json()["flow_lph"] == 0.6
+    assert client.get(f"/v1/plots/{NORTH_BLOCK}").json()["lat"] == 31.25
+
+
+def test_nul_character_in_name_is_422_validation(client):
+    response = client.post("/v1/farms", json={"name": "a\u0000b"})
+    if database.backend() == "postgres":
+        assert_problem(response, 422, "VALIDATION")
+    else:
+        assert response.status_code == 201
+
+
+def _assert_unavailable(response):
+    assert_problem(response, 503, "UNAVAILABLE")
+    assert response.headers["retry-after"] == "5"
+
+
+def test_postgres_server_down_returns_503(monkeypatch):
+    from fastapi.testclient import TestClient
+    from main import app
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://postgres:x@127.0.0.1:1/registry")
+    with TestClient(app) as test_client:
+        _assert_unavailable(test_client.get("/v1/farms"))
+
+
+def test_postgres_wrong_password_returns_503(monkeypatch):
+    import os
+    from urllib.parse import urlsplit
+
+    from fastapi.testclient import TestClient
+    from main import app
+
+    url = os.environ.get("TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL is not set")
+    parts = urlsplit(url)
+    bad = url.replace(f"{parts.username}:{parts.password}@", f"{parts.username}:not-the-password@", 1)
+    assert bad != url
+    monkeypatch.setenv("DATABASE_URL", bad)
+    with TestClient(app) as test_client:
+        _assert_unavailable(test_client.get("/v1/farms"))
+
+
+def test_blank_database_url_uses_sqlite(db_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from main import app
+
+    monkeypatch.setenv("DATABASE_URL", "")
+    with TestClient(app) as test_client:
+        assert test_client.get("/v1/farms").status_code == 200
