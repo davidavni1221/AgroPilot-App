@@ -4,7 +4,8 @@
 
 - Work in `services/registry-service`. Run commands from that folder.
 - Run the tests with `uv run pytest`.
-- Create or reset the database with `bash seed_registry.sh` (needs the `sqlite3` tool). Never edit `registry.db` by hand. It is not tracked by git.
+- Both databases are supported: SQLite by default, PostgreSQL when `DATABASE_URL` is set.
+- Create or reset the database with `bash seed_registry.sh` (needs the `sqlite3` tool). For PostgreSQL use `uv run python seed_postgres.py`, which drops and recreates the tables. Never edit `registry.db` by hand. It is not tracked by git.
 - Start the service with `uv run uvicorn main:app --host 127.0.0.1 --port 8000`.
 - Every error is `application/problem+json` with a `code`: `VALIDATION`, `NOT_FOUND`, `CONFLICT` or `UNAVAILABLE`.
 - Dates are always `YYYY-MM-DD`.

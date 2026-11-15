@@ -405,3 +405,36 @@ def test_blank_database_url_uses_sqlite(db_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "")
     with TestClient(app) as test_client:
         assert test_client.get("/v1/farms").status_code == 200
+
+
+# --- Long text and many rows ---
+
+def test_long_text_values_round_trip(client):
+    long_name = "x" * 1_000_000
+    created = client.post("/v1/farms", json={"name": long_name})
+    assert created.status_code == 201
+    fetched = client.get(f"/v1/farms/{created.json()['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["name"] == long_name
+
+    hebrew = "חוות שלום 🌱"
+    created = client.post("/v1/farms", json={"name": hebrew})
+    assert created.status_code == 201
+    assert client.get(f"/v1/farms/{created.json()['id']}").json()["name"] == hebrew
+
+
+def test_thousands_of_rows(client):
+    dependency = database.get_db()  # keep the generator, otherwise it closes the connection
+    db = next(dependency)
+    try:
+        for n in range(5000):
+            db.execute("INSERT INTO farms (id, name) VALUES (?, ?)", (f"00000000-0000-4000-8000-{n:012d}", f"Bulk farm {n}"))
+        db.commit()
+    finally:
+        dependency.close()
+
+    response = client.get("/v1/farms")
+    assert response.status_code == 200
+    ids = [farm["id"] for farm in response.json()]
+    assert len(ids) == 5002
+    assert ids == sorted(ids)
