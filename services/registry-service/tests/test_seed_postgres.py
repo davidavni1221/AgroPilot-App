@@ -43,7 +43,21 @@ def test_seed_matches_sqlite_seed(url, tmp_path):
             assert conn.execute(sql).fetchall() == lite.execute(sql).fetchall(), table
 
 
-def test_ids_sort_bytewise(url):
+def test_id_columns_use_c_collation(url):
     with psycopg.connect(url) as conn:
-        ids = [r[0] for r in conn.execute("SELECT id FROM emitters ORDER BY id").fetchall()]
-    assert ids == sorted(ids)
+        rows = conn.execute(
+            "SELECT table_name, column_name, collation_name FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND (column_name = 'id' OR column_name LIKE '%\\_id')"
+        ).fetchall()
+    assert len(rows) == 9  # 5 id columns + 4 *_id columns in plots
+    assert [r for r in rows if r[2] != "C"] == []
+
+
+def test_ids_sort_bytewise(url):
+    ids = ["a-b", "a_b", "B", "a", "A1", "a1"]
+    with psycopg.connect(url) as conn:
+        for i in ids:
+            conn.execute("INSERT INTO crops (id, name) VALUES (%s, 'x')", (i,))
+        got = [r[0] for r in conn.execute("SELECT id FROM crops WHERE name = 'x' ORDER BY id").fetchall()]
+        conn.rollback()
+    assert got == sorted(ids)
