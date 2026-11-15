@@ -14,6 +14,16 @@ SERVICE_DIR = Path(__file__).resolve().parent.parent
 SEED_SCRIPT = SERVICE_DIR / "seed_registry.sh"
 
 
+def require_test_database_url() -> str:
+    """Returns TEST_DATABASE_URL, skips if unset, fails unless it names registry_test (seeding drops tables)."""
+    url = os.environ.get("TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL is not set")
+    if urlsplit(url).path != "/registry_test":
+        pytest.fail("TEST_DATABASE_URL must point to the registry_test database (seeding drops tables)")
+    return url
+
+
 @pytest.fixture
 def db_path(tmp_path, monkeypatch):
     """בונה מסד חדש מ-seed לכל בדיקה, כך שהבדיקות לא משנות את registry.db האמיתי."""
@@ -29,11 +39,7 @@ def client(request, monkeypatch):
     if request.param == "sqlite":
         request.getfixturevalue("db_path")
     else:
-        url = os.environ.get("TEST_DATABASE_URL")
-        if not url:
-            pytest.skip("TEST_DATABASE_URL is not set")
-        if urlsplit(url).path != "/registry_test":
-            pytest.fail("TEST_DATABASE_URL must point to the registry_test database (seeding drops tables)")
+        url = require_test_database_url()
         monkeypatch.setenv("DATABASE_URL", url)
         seed(url)
     with TestClient(app) as test_client:

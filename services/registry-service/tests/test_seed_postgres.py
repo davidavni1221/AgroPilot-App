@@ -6,6 +6,7 @@ from pathlib import Path
 import psycopg
 import pytest
 
+from conftest import require_test_database_url
 from seed_postgres import seed
 
 SERVICE_DIR = Path(__file__).resolve().parent.parent
@@ -18,7 +19,7 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def url():
-    url = os.environ["TEST_DATABASE_URL"]
+    url = require_test_database_url()
     seed(url)
     return url
 

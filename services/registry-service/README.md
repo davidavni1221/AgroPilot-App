@@ -50,10 +50,17 @@ To run the tests on PostgreSQL as well, create a separate database and point `TE
 
 ```bash
 createdb registry_test
+```
+
+If PostgreSQL runs in Docker, create it with `docker exec registry-pg createdb -U postgres registry_test` instead. Then run:
+
+```bash
 TEST_DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/registry_test uv run pytest
 ```
 
 Without `TEST_DATABASE_URL`, the PostgreSQL tests are skipped and only the SQLite tests run.
+
+Known difference: PostgreSQL cannot store or compare the NUL character (`\x00`). Inside an id, path or query value it gives 422 `VALIDATION` on PostgreSQL, where SQLite gives 404, an empty list, or a field-specific 422. It is junk input, and the response is still `application/problem+json`.
 
 ## Endpoints
 

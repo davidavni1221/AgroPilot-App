@@ -1,3 +1,5 @@
+import random
+import string
 from datetime import date, timedelta
 
 import pytest
@@ -438,3 +440,19 @@ def test_thousands_of_rows(client):
     ids = [farm["id"] for farm in response.json()]
     assert len(ids) == 5002
     assert ids == sorted(ids)
+
+
+def test_long_plot_name_is_not_limited(client):
+    rng = random.Random(0)
+    alphabet = string.ascii_letters + string.digits
+    long_name = "".join(rng.choice(alphabet) for _ in range(10_000))
+    other_name = "".join(rng.choice(alphabet) for _ in range(10_000))
+
+    created = client.post("/v1/plots", json=valid_plot(name=long_name))
+    assert created.status_code == 201
+    assert_problem(client.post("/v1/plots", json=valid_plot(name=long_name)), 409, "CONFLICT")
+
+    plot_id = client.post("/v1/plots", json=valid_plot(name="Short")).json()["id"]
+    renamed = client.patch(f"/v1/plots/{plot_id}", json={"name": other_name})
+    assert renamed.status_code == 200
+    assert renamed.json()["name"] == other_name

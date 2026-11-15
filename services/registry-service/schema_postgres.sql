@@ -32,6 +32,8 @@ CREATE TABLE plots (
   emitter_spacing_m  DOUBLE PRECISION NOT NULL,
   emitter_id         TEXT COLLATE "C" NOT NULL REFERENCES emitters(id),
   lat                DOUBLE PRECISION NOT NULL,
-  lon                DOUBLE PRECISION NOT NULL,
-  UNIQUE (farm_id, name)
+  lon                DOUBLE PRECISION NOT NULL
 );
+
+-- md5(name): a btree entry is capped at ~2.7 KB, so indexing the raw name would limit its length.
+CREATE UNIQUE INDEX plots_farm_name_key ON plots (farm_id, md5(name));
