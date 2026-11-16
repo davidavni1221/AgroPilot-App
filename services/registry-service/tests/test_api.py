@@ -3,8 +3,10 @@ import string
 from datetime import date, timedelta
 
 import pytest
+from sqlalchemy import exc, insert, text
 
 import database
+from tables import farms
 
 DEMO_FARM = "b7e2c0a0-3c1d-4f0a-9a11-0c5d2e6f1001"  # Demo cooperative: North block, East block
 EAST_FARM = "a9c1e4b2-6f70-4d8e-a144-3f8b5c904004"  # East farm: West block, Greenhouse
@@ -315,17 +317,15 @@ def test_delete_unknown_plot_is_404(client):
 
 def test_connection_from_get_db_enforces_foreign_keys(db_path):
     """בודק את החיבור שהשירות באמת משתמש בו (get_db), לא חיבור שהבדיקה פתחה בעצמה."""
-    import sqlite3
-
     dependency = database.get_db()  # שומרים את המחולל, אחרת הוא נסגר והחיבור איתו
     conn = next(dependency)
     try:
-        with pytest.raises(sqlite3.IntegrityError):
-            conn.execute(
+        with pytest.raises(exc.IntegrityError):
+            conn.execute(text(
                 "INSERT INTO plots (id, farm_id, name, area_m2, crop_id, planting_date, soil_id, "
                 "row_spacing_m, emitter_spacing_m, emitter_id, lat, lon) "
                 "VALUES ('x', 'nope', 'n', 1, 'tomato', '2026-01-01', 'loam', 1, 1, 'dripnet-pc-1.0', 1, 1)"
-            )
+            ))
     finally:
         dependency.close()
 
@@ -429,8 +429,7 @@ def test_thousands_of_rows(client):
     dependency = database.get_db()  # keep the generator, otherwise it closes the connection
     db = next(dependency)
     try:
-        for n in range(5000):
-            db.execute("INSERT INTO farms (id, name) VALUES (?, ?)", (f"00000000-0000-4000-8000-{n:012d}", f"Bulk farm {n}"))
+        db.execute(insert(farms), [{"id": f"00000000-0000-4000-8000-{n:012d}", "name": f"Bulk farm {n}"} for n in range(5000)])
         db.commit()
     finally:
         dependency.close()

@@ -1,18 +1,19 @@
-import sqlite3
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
+from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-import psycopg
-from psycopg.rows import dict_row
+from sqlalchemy import Connection, create_engine, event, exc
+from sqlalchemy.engine import Engine
+from sqlalchemy.pool import NullPool
 
 from config import get_settings
 
 DB_PATH = Path(__file__).parent / "registry.db"
 
-OPERATIONAL_ERRORS = (sqlite3.OperationalError, psycopg.OperationalError)
-INTEGRITY_ERRORS = (sqlite3.IntegrityError, psycopg.IntegrityError)
-DATA_ERRORS = (psycopg.DataError,)
+OPERATIONAL_ERRORS = (exc.OperationalError,)
+INTEGRITY_ERRORS = (exc.IntegrityError,)
+DATA_ERRORS = (exc.DataError,)
 
 
 def database_url() -> str | None:
@@ -23,54 +24,30 @@ def backend() -> Literal["sqlite", "postgres"]:
     return "sqlite" if database_url() is None else "postgres"
 
 
-def translate_placeholders(sql: str) -> str:
-    return sql.replace("%", "%%").replace("?", "%s")
+@lru_cache
+def _engine(url: str) -> Engine:
+    if url.startswith("sqlite"):
+        # NullPool: a new connection per request, like a plain sqlite3 file.
+        engine = create_engine(url, poolclass=NullPool)
+
+        @event.listens_for(engine, "connect")
+        def enable_foreign_keys(dbapi_connection, _):
+            # SQLite does not enforce foreign keys by default.
+            dbapi_connection.execute("PRAGMA foreign_keys = ON")
+
+        return engine
+    return create_engine(url, connect_args={"connect_timeout": 5}, pool_pre_ping=True)
 
 
-class Cursor:
-    def __init__(self, cur):
-        self._cur = cur
-
-    def fetchone(self) -> dict | None:
-        row = self._cur.fetchone()
-        return None if row is None else dict(row)
-
-    def fetchall(self) -> list[dict]:
-        return [dict(r) for r in self._cur.fetchall()]
+def engine() -> Engine:
+    url = database_url()
+    if url is None:
+        # mode=rw: a missing file is an error, not a silently created empty database.
+        return _engine(f"sqlite:///file:{DB_PATH}?mode=rw&uri=true")
+    # "postgres://" is not understood by SQLAlchemy, and plain "postgresql://" would pick the psycopg2 driver.
+    return _engine("postgresql+psycopg://" + url.split("://", 1)[1])
 
 
-class Db:
-    def __init__(self, conn, is_postgres: bool):
-        self._conn = conn
-        self._is_postgres = is_postgres
-
-    def execute(self, sql: str, params: Sequence = ()) -> Cursor:
-        if self._is_postgres:
-            return Cursor(self._conn.execute(translate_placeholders(sql), params))
-        return Cursor(self._conn.execute(sql, params))
-
-    def commit(self) -> None:
-        self._conn.commit()
-
-    def close(self) -> None:
-        self._conn.close()
-
-
-def _connect() -> Db:
-    if backend() == "postgres":
-        conn = psycopg.connect(database_url(), row_factory=dict_row, connect_timeout=5)
-        return Db(conn, True)
-    # mode=rw: אם הקובץ חסר, להיכשל במקום ליצור מסד ריק בשקט
-    conn = sqlite3.connect(DB_PATH.as_uri() + "?mode=rw", uri=True, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    # SQLite לא אוכף מפתחות זרים כברירת מחדל; בלי זה אפשר ליצור חלקה לחווה שלא קיימת
-    conn.execute("PRAGMA foreign_keys = ON")
-    return Db(conn, False)
-
-
-def get_db() -> Iterator[Db]:
-    db = _connect()
-    try:
-        yield db
-    finally:
-        db.close()
+def get_db() -> Iterator[Connection]:
+    with engine().connect() as connection:
+        yield connection

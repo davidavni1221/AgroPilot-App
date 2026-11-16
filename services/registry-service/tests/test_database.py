@@ -1,10 +1,8 @@
 import pytest
+from sqlalchemy import select
 
 import database
-
-
-def test_translate_placeholders():
-    assert database.translate_placeholders("a = ? AND b LIKE '%x'") == "a = %s AND b LIKE '%%x'"
+from tables import crops
 
 
 def test_backend_unset_is_sqlite(monkeypatch):
@@ -31,12 +29,12 @@ def test_backend_unknown_scheme_raises_value_error(monkeypatch):
         database.backend()
 
 
-def test_sqlite_wrapper_returns_dict_rows(db_path, monkeypatch):
+def test_sqlite_connection_returns_dict_rows(db_path, monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
     gen = database.get_db()
     db = next(gen)
     try:
-        row = db.execute("SELECT id, name FROM crops WHERE id = ?", ("tomato",)).fetchone()
-        assert row == {"id": "tomato", "name": "Tomato"}
+        row = db.execute(select(crops).where(crops.c.id == "tomato")).mappings().first()
+        assert dict(row) == {"id": "tomato", "name": "Tomato"}
     finally:
         gen.close()

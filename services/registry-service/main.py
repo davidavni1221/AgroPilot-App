@@ -6,7 +6,10 @@ from datetime import date
 from typing import Optional
 import uuid
 
-from database import Db, get_db, backend, OPERATIONAL_ERRORS, INTEGRITY_ERRORS, DATA_ERRORS
+from sqlalchemy import Connection, delete, func, insert, select, update
+
+from database import get_db, backend, OPERATIONAL_ERRORS, INTEGRITY_ERRORS, DATA_ERRORS
+from tables import crops, emitters, farms, plots, soils
 from models import Crop, Soil, Emitter, Farm, FarmCreate, FarmUpdate, Plot, PlotCreate, PlotUpdate
 
 backend()  # נכשל בעליה אם DATABASE_URL לא תקין
@@ -73,64 +76,73 @@ for _exc_class in DATA_ERRORS:
 def health_check():
     return {"status": "ok"}
 
+def fetch_one(db: Connection, statement) -> dict | None:
+    row = db.execute(statement).mappings().first()
+    return None if row is None else dict(row)
+
+def fetch_all(db: Connection, statement) -> list[dict]:
+    return [dict(row) for row in db.execute(statement).mappings()]
+
+def exists(db: Connection, table, value) -> bool:
+    return db.execute(select(table.c.id).where(table.c.id == value)).first() is not None
+
 @app.get("/v1/crops", response_model=list[Crop])
-def get_crops(db: Db = Depends(get_db)):
-    rows = db.execute("SELECT id, name FROM crops ORDER BY id").fetchall()
-    return [dict(row) for row in rows]
-    
+def get_crops(db: Connection = Depends(get_db)):
+    return fetch_all(db, select(crops).order_by(crops.c.id))
+
 @app.get("/v1/crops/{id}", response_model=Crop)
-def get_crop(id: str, db: Db = Depends(get_db)):
-    row = db.execute("SELECT id, name FROM crops WHERE id = ?", (id,)).fetchone()
+def get_crop(id: str, db: Connection = Depends(get_db)):
+    row = fetch_one(db, select(crops).where(crops.c.id == id))
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Crop not found")
-    return dict(row)
+    return row
+
 # --- Soils ---
 @app.get("/v1/soils", response_model=list[Soil])
-def get_soils(db: Db = Depends(get_db)):
-    rows = db.execute("SELECT id, name, available_water_mm_per_m FROM soils ORDER BY id").fetchall()
-    return [dict(row) for row in rows]
+def get_soils(db: Connection = Depends(get_db)):
+    return fetch_all(db, select(soils).order_by(soils.c.id))
 
 @app.get("/v1/soils/{id}", response_model=Soil)
-def get_soil(id: str, db: Db = Depends(get_db)):
-    row = db.execute("SELECT id, name, available_water_mm_per_m FROM soils WHERE id = ?", (id,)).fetchone()
+def get_soil(id: str, db: Connection = Depends(get_db)):
+    row = fetch_one(db, select(soils).where(soils.c.id == id))
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Soil not found")
-    return dict(row)
+    return row
 
 # --- Emitters ---
 @app.get("/v1/emitters", response_model=list[Emitter])
-def get_emitters(db: Db = Depends(get_db)):
-    rows = db.execute("SELECT id, name, flow_lph FROM emitters ORDER BY id").fetchall()
-    return [dict(row) for row in rows]
+def get_emitters(db: Connection = Depends(get_db)):
+    return fetch_all(db, select(emitters).order_by(emitters.c.id))
 
 @app.get("/v1/emitters/{id}", response_model=Emitter)
-def get_emitter(id: str, db: Db = Depends(get_db)):
-    row = db.execute("SELECT id, name, flow_lph FROM emitters WHERE id = ?", (id,)).fetchone()
+def get_emitter(id: str, db: Connection = Depends(get_db)):
+    row = fetch_one(db, select(emitters).where(emitters.c.id == id))
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Emitter not found")
-    return dict(row)
+    return row
+
 # --- Farms ---
 @app.post("/v1/farms", response_model=Farm, status_code=201)
-def create_farm(farm_in: FarmCreate, db: Db = Depends(get_db)):
+def create_farm(farm_in: FarmCreate, db: Connection = Depends(get_db)):
     farm_id = str(uuid.uuid4())
-    db.execute("INSERT INTO farms (id, name) VALUES (?, ?)", (farm_id, farm_in.name))
+    db.execute(insert(farms).values(id=farm_id, name=farm_in.name))
     db.commit()
     return {"id": farm_id, "name": farm_in.name}
 
 @app.get("/v1/farms", response_model=list[Farm])
-def get_farms(db: Db = Depends(get_db)):
-    rows = db.execute("SELECT id, name FROM farms ORDER BY id").fetchall()
-    return [dict(row) for row in rows]
-    
+def get_farms(db: Connection = Depends(get_db)):
+    return fetch_all(db, select(farms).order_by(farms.c.id))
+
 @app.get("/v1/farms/{id}", response_model=Farm)
-def get_farm(id: str, db: Db = Depends(get_db)):
-    row = db.execute("SELECT id, name FROM farms WHERE id = ?", (id,)).fetchone()
+def get_farm(id: str, db: Connection = Depends(get_db)):
+    row = fetch_one(db, select(farms).where(farms.c.id == id))
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Farm not found")
-    return dict(row)
+    return row
+
 @app.patch("/v1/farms/{id}", response_model=Farm)
-def update_farm(id: str, farm_in: FarmUpdate, db: Db = Depends(get_db)):
-    row = db.execute("SELECT id, name FROM farms WHERE id = ?", (id,)).fetchone()
+def update_farm(id: str, farm_in: FarmUpdate, db: Connection = Depends(get_db)):
+    row = fetch_one(db, select(farms).where(farms.c.id == id))
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Farm not found")
 
@@ -139,89 +151,86 @@ def update_farm(id: str, farm_in: FarmUpdate, db: Db = Depends(get_db)):
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Fields cannot be null: name")
 
     if farm_in.name is not None:
-        db.execute("UPDATE farms SET name = ? WHERE id = ?", (farm_in.name, id))
+        db.execute(update(farms).where(farms.c.id == id).values(name=farm_in.name))
         db.commit()
         return {"id": id, "name": farm_in.name}
-        
-    return dict(row)
+
+    return row
 
 @app.delete("/v1/farms/{id}", status_code=204, response_class=Response)
-def delete_farm(id: str, db: Db = Depends(get_db)):
-    row = db.execute("SELECT id FROM farms WHERE id = ?", (id,)).fetchone()
-    if not row:
+def delete_farm(id: str, db: Connection = Depends(get_db)):
+    if not exists(db, farms, id):
         raise APIError(404, "NOT_FOUND", "Not Found", "Farm not found")
-        
-    plots_count = db.execute("SELECT COUNT(*) AS n FROM plots WHERE farm_id = ?", (id,)).fetchone()["n"]
+
+    plots_count = db.execute(select(func.count()).select_from(plots).where(plots.c.farm_id == id)).scalar_one()
     if plots_count > 0:
         raise APIError(409, "CONFLICT", "Conflict", "Delete a farm that still has plots")
-        
-    db.execute("DELETE FROM farms WHERE id = ?", (id,))
+
+    db.execute(delete(farms).where(farms.c.id == id))
     db.commit()
+
+# --- Plots ---
 @app.get("/v1/plots", response_model=list[Plot])
-def get_plots(farm_id: Optional[str] = None, db: Db = Depends(get_db)):
+def get_plots(farm_id: Optional[str] = None, db: Connection = Depends(get_db)):
+    statement = select(plots).order_by(plots.c.id)
     if farm_id:
-        rows = db.execute("SELECT * FROM plots WHERE farm_id = ? ORDER BY id", (farm_id,)).fetchall()
-    else:
-        rows = db.execute("SELECT * FROM plots ORDER BY id").fetchall()
-    return [dict(row) for row in rows]
-        
+        statement = statement.where(plots.c.farm_id == farm_id)
+    return fetch_all(db, statement)
+
 @app.get("/v1/plots/{id}", response_model=Plot)
-def get_plot(id: str, db: Db = Depends(get_db)):
-    row = db.execute("SELECT * FROM plots WHERE id = ?", (id,)).fetchone()
+def get_plot(id: str, db: Connection = Depends(get_db)):
+    row = fetch_one(db, select(plots).where(plots.c.id == id))
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Plot not found")
-    return dict(row)    
+    return row
+
 @app.post("/v1/plots", response_model=Plot, status_code=201)
-def create_plot(plot_in: PlotCreate, db: Db = Depends(get_db)):
+def create_plot(plot_in: PlotCreate, db: Connection = Depends(get_db)):
     # 1. בדיקה שהתאריך אינו בעתיד
     if plot_in.planting_date > date.today():
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Planting date cannot be in the future")
-        
+
     # 2. בדיקה שהחווה קיימת
-    if not db.execute("SELECT id FROM farms WHERE id = ?", (plot_in.farm_id,)).fetchone():
+    if not exists(db, farms, plot_in.farm_id):
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Unknown farm")
 
     # 3. בדיקה שהפריטים קיימים בקטלוגים
-    if not db.execute("SELECT id FROM crops WHERE id = ?", (plot_in.crop_id,)).fetchone():
+    if not exists(db, crops, plot_in.crop_id):
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Unknown crop")
-    if not db.execute("SELECT id FROM soils WHERE id = ?", (plot_in.soil_id,)).fetchone():
+    if not exists(db, soils, plot_in.soil_id):
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Unknown soil")
-    if not db.execute("SELECT id FROM emitters WHERE id = ?", (plot_in.emitter_id,)).fetchone():
+    if not exists(db, emitters, plot_in.emitter_id):
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Unknown emitter")
-        
+
     # 4. בדיקה שאין חלקה באותו שם באותה חווה
-    existing = db.execute("SELECT id FROM plots WHERE farm_id = ? AND name = ?", (plot_in.farm_id, plot_in.name)).fetchone()
-    if existing:
+    if db.execute(select(plots.c.id).where(plots.c.farm_id == plot_in.farm_id, plots.c.name == plot_in.name)).first():
         raise APIError(409, "CONFLICT", "Conflict", "Duplicate plot name on the same farm")
-        
+
     # 5. שמירה במסד הנתונים
     plot_id = str(uuid.uuid4())
     try:
-        db.execute("""
-            INSERT INTO plots (
-                id, farm_id, name, area_m2, crop_id, planting_date, soil_id, 
-                row_spacing_m, emitter_spacing_m, emitter_id, lat, lon
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            plot_id, plot_in.farm_id, plot_in.name, plot_in.area_m2, plot_in.crop_id, 
-            plot_in.planting_date.isoformat(), plot_in.soil_id, plot_in.row_spacing_m, 
-            plot_in.emitter_spacing_m, plot_in.emitter_id, plot_in.lat, plot_in.lon
+        db.execute(insert(plots).values(
+            id=plot_id, farm_id=plot_in.farm_id, name=plot_in.name, area_m2=plot_in.area_m2,
+            crop_id=plot_in.crop_id, planting_date=plot_in.planting_date.isoformat(),
+            soil_id=plot_in.soil_id, row_spacing_m=plot_in.row_spacing_m,
+            emitter_spacing_m=plot_in.emitter_spacing_m, emitter_id=plot_in.emitter_id,
+            lat=plot_in.lat, lon=plot_in.lon,
         ))
         db.commit()
     except INTEGRITY_ERRORS:
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Invalid farm_id or constraints")
-        
-    row = db.execute("SELECT * FROM plots WHERE id = ?", (plot_id,)).fetchone()
-    return dict(row)
+
+    return fetch_one(db, select(plots).where(plots.c.id == plot_id))
+
 @app.patch("/v1/plots/{id}", response_model=Plot)
-def update_plot(id: str, plot_in: PlotUpdate, db: Db = Depends(get_db)):
-    row = db.execute("SELECT * FROM plots WHERE id = ?", (id,)).fetchone()
+def update_plot(id: str, plot_in: PlotUpdate, db: Connection = Depends(get_db)):
+    row = fetch_one(db, select(plots).where(plots.c.id == id))
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Plot not found")
-        
+
     update_data = plot_in.model_dump(exclude_unset=True)
     if not update_data:
-        return dict(row)
+        return row
 
     # כל השדות בחלקה חובה, לכן null אינו ערך חוקי (אחרת המסד יחזיר שגיאה ונקבל 500)
     null_fields = [key for key, value in update_data.items() if value is None]
@@ -230,36 +239,28 @@ def update_plot(id: str, plot_in: PlotUpdate, db: Db = Depends(get_db)):
 
     if "planting_date" in update_data and update_data["planting_date"] > date.today():
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Planting date cannot be in the future")
-    if "crop_id" in update_data and not db.execute("SELECT id FROM crops WHERE id = ?", (update_data["crop_id"],)).fetchone():
+    if "crop_id" in update_data and not exists(db, crops, update_data["crop_id"]):
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Unknown crop")
-    if "soil_id" in update_data and not db.execute("SELECT id FROM soils WHERE id = ?", (update_data["soil_id"],)).fetchone():
+    if "soil_id" in update_data and not exists(db, soils, update_data["soil_id"]):
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Unknown soil")
-    if "emitter_id" in update_data and not db.execute("SELECT id FROM emitters WHERE id = ?", (update_data["emitter_id"],)).fetchone():
+    if "emitter_id" in update_data and not exists(db, emitters, update_data["emitter_id"]):
         raise APIError(422, "VALIDATION", "Unprocessable Entity", "Unknown emitter")
-        
+
     if "name" in update_data:
-        existing = db.execute("SELECT id FROM plots WHERE farm_id = ? AND name = ? AND id != ?", (row["farm_id"], update_data["name"], id)).fetchone()
-        if existing:
+        duplicate = select(plots.c.id).where(plots.c.farm_id == row["farm_id"], plots.c.name == update_data["name"], plots.c.id != id)
+        if db.execute(duplicate).first():
             raise APIError(409, "CONFLICT", "Conflict", "Duplicate plot name on the same farm")
-            
-    set_clauses = []
-    values = []
-    for key, value in update_data.items():
-        set_clauses.append(f"{key} = ?")
-        values.append(value.isoformat() if isinstance(value, date) else value)
-            
-    values.append(id)
-    db.execute(f"UPDATE plots SET {', '.join(set_clauses)} WHERE id = ?", values)
+
+    values = {key: value.isoformat() if isinstance(value, date) else value for key, value in update_data.items()}
+    db.execute(update(plots).where(plots.c.id == id).values(**values))
     db.commit()
-    
-    updated_row = db.execute("SELECT * FROM plots WHERE id = ?", (id,)).fetchone()
-    return dict(updated_row)
+
+    return fetch_one(db, select(plots).where(plots.c.id == id))
 
 @app.delete("/v1/plots/{id}", status_code=204, response_class=Response)
-def delete_plot(id: str, db: Db = Depends(get_db)):
-    row = db.execute("SELECT id FROM plots WHERE id = ?", (id,)).fetchone()
-    if not row:
+def delete_plot(id: str, db: Connection = Depends(get_db)):
+    if not exists(db, plots, id):
         raise APIError(404, "NOT_FOUND", "Not Found", "Plot not found")
-        
-    db.execute("DELETE FROM plots WHERE id = ?", (id,))
+
+    db.execute(delete(plots).where(plots.c.id == id))
     db.commit()
