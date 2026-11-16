@@ -76,7 +76,7 @@ async def _get(http: httpx.AsyncClient, service: str, url: str, params: dict | N
     except httpx.TimeoutException:
         raise UpstreamUnavailable(service, "did not answer in time") from None
     except httpx.HTTPError as exc:
-        raise UpstreamUnavailable(service, f"is not reachable ({type(exc).__name__})") from None
+        raise UpstreamUnavailable(service, "is not reachable") from None
 
 
 def _parse(service: str, model, response: httpx.Response):
