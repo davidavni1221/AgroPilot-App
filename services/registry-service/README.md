@@ -109,18 +109,18 @@ Measured at 10 requests per second for 30 seconds per endpoint (about 300 reques
 
 | Endpoint | SQLite p95 | PostgreSQL p95 |
 |---|---|---|
-| GET /v1/farms | 11.1 ms | 19.7 ms |
-| GET /v1/farms/{id} | 12.2 ms | 20.0 ms |
-| GET /v1/plots | 12.8 ms | 20.7 ms |
-| GET /v1/plots/{id} | 11.9 ms | 19.9 ms |
-| GET /v1/crops | 10.9 ms | 21.7 ms |
-| GET /v1/crops/{id} | 11.4 ms | 20.9 ms |
-| GET /v1/soils | 12.1 ms | 19.1 ms |
-| GET /v1/soils/{id} | 11.7 ms | 19.8 ms |
-| GET /v1/emitters | 12.2 ms | 19.8 ms |
-| GET /v1/emitters/{id} | 11.9 ms | 18.2 ms |
+| GET /v1/farms | 11.1 ms | 28.0 ms |
+| GET /v1/farms/{id} | 12.2 ms | 25.0 ms |
+| GET /v1/plots | 12.8 ms | 25.9 ms |
+| GET /v1/plots/{id} | 11.9 ms | 28.0 ms |
+| GET /v1/crops | 10.9 ms | 24.7 ms |
+| GET /v1/crops/{id} | 11.4 ms | 26.0 ms |
+| GET /v1/soils | 12.1 ms | 25.2 ms |
+| GET /v1/soils/{id} | 11.7 ms | 26.0 ms |
+| GET /v1/emitters | 12.2 ms | 25.0 ms |
+| GET /v1/emitters/{id} | 11.9 ms | 25.9 ms |
 
-The PostgreSQL numbers were measured the same way, against a PostgreSQL 16 container on the same machine.
+The PostgreSQL numbers were measured the same way, through SQLAlchemy, against a local PostgreSQL server (apt package, WSL) on the same machine, with 0 errors. The SQLite column is from the earlier measurement, before the move to SQLAlchemy, and has not been re-measured.
 
 The target is p95 at or below 100 ms.
 
@@ -128,9 +128,10 @@ The target is p95 at or below 100 ms.
 
 - `main.py`: routes, validation rules, and error handling.
 - `models.py`: request and response shapes.
-- `database.py`: opens a database connection per request.
-- `schema_postgres.sql`: the PostgreSQL tables.
-- `seed_postgres.py`: drops and recreates the PostgreSQL tables and loads the same seed rows.
+- `config.py`: settings (`DATABASE_URL`), read with pydantic-settings and checked at startup.
+- `tables.py`: the table definitions, shared by SQLite and PostgreSQL (SQLAlchemy Core).
+- `database.py`: the SQLAlchemy engine for `DATABASE_URL`, one connection per request, and the database error classes.
+- `seed_postgres.py`: creates the tables from `tables.py` in an empty PostgreSQL database and loads the same seed rows (drops them first).
 - `seed_registry.sh`: builds `registry.db` with the catalogues, two farms, and four plots.
 - `tests/`: automated tests.
 - `docs/judgment-log.md`: decisions taken during the build, and why.

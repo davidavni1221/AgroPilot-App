@@ -24,7 +24,7 @@ Written 2026-11-16 so work can continue from another computer. Chat history is l
 
 ## Open question for P2
 
-P2 says "All data access goes through SQLAlchemy". The current PostgreSQL work uses a thin `psycopg` adapter in `database.py`. Decide with the user whether to move registry-service to SQLAlchemy, or keep the adapter. Do not decide silently.
+Resolved 2026-11-16: the user chose SQLAlchemy (Core). See `docs/superpowers/specs/2026-11-16-sqlalchemy-design.md`.
 
 ## Setting up on a new computer
 

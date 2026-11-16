@@ -3,13 +3,10 @@
 Usage, from services/registry-service:
     uv run python seed_postgres.py      # seeds DATABASE_URL
 """
-from pathlib import Path
-
-import psycopg
+from sqlalchemy import create_engine, insert
 
 import database
-
-SCHEMA = Path(__file__).parent / "schema_postgres.sql"
+from tables import crops, emitters, farms, metadata, plots, soils
 
 CROPS = [("tomato", "Tomato"), ("bell-pepper", "Bell pepper")]
 SOILS = [("sand", "Sand", 83), ("loam", "Loam", 175), ("clay-loam", "Clay loam", 200)]
@@ -35,20 +32,26 @@ PLOTS = [
 ]
 
 
+PLOT_COLUMNS = ["id", "farm_id", "name", "area_m2", "crop_id", "planting_date", "soil_id",
+                "row_spacing_m", "emitter_spacing_m", "emitter_id", "lat", "lon"]
+
+
 def seed(url: str) -> None:
-    with psycopg.connect(url) as conn:
-        conn.execute("DROP TABLE IF EXISTS plots, farms, crops, soils, emitters CASCADE")
-        conn.execute(SCHEMA.read_text())
-        for table, columns, rows in [
-            ("crops", "id, name", CROPS),
-            ("soils", "id, name, available_water_mm_per_m", SOILS),
-            ("emitters", "id, name, flow_lph", EMITTERS),
-            ("farms", "id, name", FARMS),
-            ("plots", "id, farm_id, name, area_m2, crop_id, planting_date, soil_id, "
-                      "row_spacing_m, emitter_spacing_m, emitter_id, lat, lon", PLOTS),
-        ]:
-            marks = ", ".join(["%s"] * len(rows[0]))
-            conn.cursor().executemany(f"INSERT INTO {table} ({columns}) VALUES ({marks})", rows)
+    engine = create_engine(database.driver_url(url))
+    try:
+        with engine.begin() as conn:
+            metadata.drop_all(conn)
+            metadata.create_all(conn)
+            for table, columns, rows in [
+                (crops, ["id", "name"], CROPS),
+                (soils, ["id", "name", "available_water_mm_per_m"], SOILS),
+                (emitters, ["id", "name", "flow_lph"], EMITTERS),
+                (farms, ["id", "name"], FARMS),
+                (plots, PLOT_COLUMNS, PLOTS),
+            ]:
+                conn.execute(insert(table), [dict(zip(columns, row)) for row in rows])
+    finally:
+        engine.dispose()
 
 
 if __name__ == "__main__":

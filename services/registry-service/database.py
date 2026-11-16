@@ -24,6 +24,11 @@ def backend() -> Literal["sqlite", "postgres"]:
     return "sqlite" if database_url() is None else "postgres"
 
 
+def driver_url(url: str) -> str:
+    # "postgres://" is not understood by SQLAlchemy, and plain "postgresql://" would pick the psycopg2 driver.
+    return "postgresql+psycopg://" + url.split("://", 1)[1]
+
+
 @lru_cache
 def _engine(url: str) -> Engine:
     if url.startswith("sqlite"):
@@ -44,8 +49,7 @@ def engine() -> Engine:
     if url is None:
         # mode=rw: a missing file is an error, not a silently created empty database.
         return _engine(f"sqlite:///file:{DB_PATH}?mode=rw&uri=true")
-    # "postgres://" is not understood by SQLAlchemy, and plain "postgresql://" would pick the psycopg2 driver.
-    return _engine("postgresql+psycopg://" + url.split("://", 1)[1])
+    return _engine(driver_url(url))
 
 
 def get_db() -> Iterator[Connection]:
