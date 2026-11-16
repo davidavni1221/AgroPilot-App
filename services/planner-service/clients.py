@@ -3,10 +3,12 @@
 Any failure to get a complete, valid answer raises UpstreamUnavailable naming the service.
 A plan is never built from a partial answer.
 """
-from datetime import date
+import asyncio
+from datetime import date, timedelta
+from urllib.parse import quote
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 REGISTRY = "registry-service"
 WEATHER = "weather-service"
@@ -26,12 +28,12 @@ class PlotNotFound(Exception):
 # --- What we read from registry-service (only the fields the plan needs) ---
 class Plot(BaseModel):
     id: str
-    area_m2: float
+    area_m2: float = Field(gt=0)
     crop_id: str
     planting_date: date
     soil_id: str
-    row_spacing_m: float
-    emitter_spacing_m: float
+    row_spacing_m: float = Field(gt=0)
+    emitter_spacing_m: float = Field(gt=0)
     emitter_id: str
     lat: float
     lon: float
@@ -39,23 +41,19 @@ class Plot(BaseModel):
 
 class Soil(BaseModel):
     id: str
-    available_water_mm_per_m: float
+    available_water_mm_per_m: float = Field(gt=0)
 
 
 class Emitter(BaseModel):
     id: str
-    flow_lph: float
-
-
-class Crop(BaseModel):
-    id: str
+    flow_lph: float = Field(gt=0)
 
 
 # --- What we read from weather-service ---
 class ForecastDay(BaseModel):
     date: date
-    et0_mm: float
-    rain_mm: float
+    et0_mm: float = Field(ge=0, allow_inf_nan=False)
+    rain_mm: float = Field(ge=0, allow_inf_nan=False)
 
 
 class Forecast(BaseModel):
@@ -67,7 +65,6 @@ class PlotData(BaseModel):
     plot: Plot
     soil: Soil
     emitter: Emitter
-    crop: Crop
 
 
 async def _get(http: httpx.AsyncClient, service: str, url: str, params: dict | None = None) -> httpx.Response:
@@ -93,14 +90,19 @@ class RegistryClient:
         self._http = http
 
     async def plot_data(self, plot_id: str) -> PlotData:
-        response = await _get(self._http, REGISTRY, f"/v1/plots/{plot_id}")
+        response = await _get(self._http, REGISTRY, f"/v1/plots/{quote(plot_id, safe='')}")
         if response.status_code == 404:
             raise PlotNotFound()
         plot = _parse(REGISTRY, Plot, response)
-        soil = _parse(REGISTRY, Soil, await _get(self._http, REGISTRY, f"/v1/soils/{plot.soil_id}"))
-        emitter = _parse(REGISTRY, Emitter, await _get(self._http, REGISTRY, f"/v1/emitters/{plot.emitter_id}"))
-        crop = _parse(REGISTRY, Crop, await _get(self._http, REGISTRY, f"/v1/crops/{plot.crop_id}"))
-        return PlotData(plot=plot, soil=soil, emitter=emitter, crop=crop)
+        soil_response, emitter_response = await asyncio.gather(
+            _get(self._http, REGISTRY, f"/v1/soils/{quote(plot.soil_id, safe='')}"),
+            _get(self._http, REGISTRY, f"/v1/emitters/{quote(plot.emitter_id, safe='')}"),
+        )
+        return PlotData(
+            plot=plot,
+            soil=_parse(REGISTRY, Soil, soil_response),
+            emitter=_parse(REGISTRY, Emitter, emitter_response),
+        )
 
 
 class WeatherClient:
@@ -112,4 +114,7 @@ class WeatherClient:
         forecast = _parse(WEATHER, Forecast, response)
         if len(forecast.days) != days:
             raise UpstreamUnavailable(WEATHER, f"sent {len(forecast.days)} days, expected {days}")
+        dates = [d.date for d in forecast.days]
+        if any(b - a != timedelta(days=1) for a, b in zip(dates, dates[1:])):
+            raise UpstreamUnavailable(WEATHER, "sent days that are not consecutive")
         return forecast

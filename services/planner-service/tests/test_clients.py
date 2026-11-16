@@ -7,7 +7,6 @@ PLOT = {"id": "p1", "farm_id": "f", "name": "North", "area_m2": 1000, "crop_id":
         "soil_id": "loam", "row_spacing_m": 1.5, "emitter_spacing_m": 0.4, "emitter_id": "dripnet-pc-1.0", "lat": 31.25, "lon": 34.79}
 SOIL = {"id": "loam", "name": "Loam", "available_water_mm_per_m": 175}
 EMITTER = {"id": "dripnet-pc-1.0", "name": "DripNet PC", "flow_lph": 1.0}
-CROP = {"id": "tomato", "name": "Tomato"}
 FORECAST = {"lat": 31.25, "lon": 34.79, "source": "open-meteo", "fetched_at": "2026-11-12T06:00:00Z", "stale": False,
             "days": [{"date": f"2026-11-{12 + i}", "et0_mm": 3.0, "rain_mm": 0.0} for i in range(3)]}
 
@@ -17,7 +16,7 @@ def http(handler):
 
 
 def registry_handler(overrides=None):
-    answers = {"/v1/plots/p1": PLOT, "/v1/soils/loam": SOIL, "/v1/emitters/dripnet-pc-1.0": EMITTER, "/v1/crops/tomato": CROP}
+    answers = {"/v1/plots/p1": PLOT, "/v1/soils/loam": SOIL, "/v1/emitters/dripnet-pc-1.0": EMITTER}
     answers.update(overrides or {})
 
     def handler(request):
@@ -48,7 +47,9 @@ async def test_unknown_plot_is_plot_not_found():
         {"/v1/soils/loam": httpx.Response(500)},
         {"/v1/soils/loam": None},  # a plot whose soil is missing is broken data, not a reason to guess
         {"/v1/emitters/dripnet-pc-1.0": {"id": "x"}},
-        {"/v1/crops/tomato": httpx.Response(503)},
+        {"/v1/emitters/dripnet-pc-1.0": {**EMITTER, "flow_lph": 0}},  # would be a division by zero
+        {"/v1/soils/loam": {**SOIL, "available_water_mm_per_m": 0}},
+        {"/v1/plots/p1": {**PLOT, "row_spacing_m": 0}},
     ],
 )
 async def test_registry_problems_name_the_registry(overrides):
@@ -93,8 +94,11 @@ async def test_weather_request_carries_the_plot_coordinates_and_days():
         httpx.Response(200, json={"stale": False}),
         httpx.Response(200, json={**FORECAST, "days": [{"date": "2026-11-12", "et0_mm": None, "rain_mm": 0}] * 3}),
         httpx.Response(200, json={**FORECAST, "days": FORECAST["days"][:2]}),  # fewer days than asked
+        httpx.Response(200, json={**FORECAST, "days": [FORECAST["days"][0], FORECAST["days"][2], FORECAST["days"][1]]}),
+        httpx.Response(200, json={**FORECAST, "days": [{**FORECAST["days"][0], "rain_mm": -1}] + FORECAST["days"][1:]}),
+        httpx.Response(200, json={**FORECAST, "days": [{**FORECAST["days"][0], "et0_mm": -0.1}] + FORECAST["days"][1:]}),
     ],
-    ids=["503", "422", "not-json", "no-days", "null-et0", "too-few-days"],
+    ids=["503", "422", "not-json", "no-days", "null-et0", "too-few-days", "out-of-order", "negative-rain", "negative-et0"],
 )
 async def test_weather_problems_name_the_weather_service(response):
     with pytest.raises(UpstreamUnavailable) as caught:
@@ -110,3 +114,15 @@ async def test_weather_timeout_or_down_names_the_weather_service(error):
     with pytest.raises(UpstreamUnavailable) as caught:
         await WeatherClient(http(handler)).forecast(31.25, 34.79, 3)
     assert caught.value.service == "weather-service"
+
+
+async def test_plot_id_is_escaped_in_the_registry_path():
+    seen = []
+
+    def handler(request):
+        seen.append(request.url.raw_path.decode())
+        return httpx.Response(404)
+
+    with pytest.raises(PlotNotFound):
+        await RegistryClient(http(handler)).plot_data("../soils?x=1#y")
+    assert seen == ["/v1/plots/..%2Fsoils%3Fx%3D1%23y"]

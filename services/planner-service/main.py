@@ -116,7 +116,7 @@ async def get_plan(
     data = await registry.plot_data(id)
     forecast = await weather.forecast(data.plot.lat, data.plot.lon, days)
     capacity, plan_days = engine.plan(
-        crop_id=data.crop.id,
+        crop_id=data.plot.crop_id,
         planting_date=data.plot.planting_date,
         soil_mm_per_m=data.soil.available_water_mm_per_m,
         area_m2=data.plot.area_m2,
@@ -127,7 +127,7 @@ async def get_plan(
     )
     return {
         "plot_id": data.plot.id,
-        "crop_id": data.crop.id,
+        "crop_id": data.plot.crop_id,
         "bucket_capacity_mm": round(capacity, 2),
         "stale": forecast.stale,
         "days": [
