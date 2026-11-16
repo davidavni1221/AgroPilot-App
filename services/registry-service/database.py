@@ -1,14 +1,12 @@
-import os
 import sqlite3
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Literal
 
 import psycopg
-from dotenv import load_dotenv
 from psycopg.rows import dict_row
 
-load_dotenv()  # does not override variables that are already set
+from config import get_settings
 
 DB_PATH = Path(__file__).parent / "registry.db"
 
@@ -18,18 +16,11 @@ DATA_ERRORS = (psycopg.DataError,)
 
 
 def database_url() -> str | None:
-    url = os.environ.get("DATABASE_URL", "").strip()
-    return url or None
+    return get_settings().database_url
 
 
 def backend() -> Literal["sqlite", "postgres"]:
-    url = database_url()
-    if url is None:
-        return "sqlite"
-    scheme = url.split("://", 1)[0].lower() if "://" in url else ""
-    if scheme in ("postgresql", "postgres"):
-        return "postgres"
-    raise ValueError(f"Unsupported DATABASE_URL scheme: {scheme!r}")
+    return "sqlite" if database_url() is None else "postgres"
 
 
 def translate_placeholders(sql: str) -> str:
