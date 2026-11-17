@@ -19,7 +19,7 @@ export function WeekChart({ days }: { days: PlanDay[] }) {
       <BarChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
         <CartesianGrid vertical={false} />
         <XAxis dataKey="day" tickLine={false} axisLine={false} interval={0} />
-        <YAxis width={32} tickLine={false} axisLine={false} />
+        <YAxis width={44} tickMargin={8} tickLine={false} axisLine={false} />
         <ChartTooltip content={<ChartTooltipContent />} />
         <Bar dataKey="minutes" fill="var(--color-minutes)" radius={4} />
       </BarChart>

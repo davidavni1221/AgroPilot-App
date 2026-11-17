@@ -11,6 +11,7 @@ export function DayList({ plan }: { plan: Plan }) {
         The next 7 days
       </h2>
       <div className="mt-3 rounded-xl bg-card p-3">
+        <p className="mb-2 text-sm text-muted-foreground">Minutes of watering each day</p>
         <WeekChart days={plan.days} />
       </div>
       <div className="mt-3 rounded-xl bg-card p-1">
