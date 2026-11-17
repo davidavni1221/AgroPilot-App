@@ -80,7 +80,7 @@ Numbers are rounded for display only (minutes to 0.1, mm to 0.01). The frontend 
 
 | Status | Code | When |
 |---|---|---|
-| 422 | `VALIDATION` | `days` outside 1 to 7 or not a number. Also a plot whose crop has no irrigation parameters, or planted after the forecast starts |
+| 422 | `VALIDATION` | `days` outside 1 to 7 or not a number. Also a plot planted after the forecast starts |
 | 404 | `NOT_FOUND` | Unknown plot |
 | 503 | `UPSTREAM_UNAVAILABLE` | registry-service or weather-service is down, does not answer in time, or sends something unusable. The `detail` names the service, for example `weather-service is not reachable` |
 
@@ -88,12 +88,12 @@ A stale forecast still gives a plan, with `stale: true` on every day. A missing,
 
 ## Assumptions
 
-Read these before trusting a number. Each is explained in the skill and can be changed in `crops.py` or `engine.py`.
+Read these before trusting a number. Each is explained in the skill and can be changed in `crops.py` (the two rules) or `engine.py`.
 
 - **Today starts with the soil at the irrigation line, half of the bucket.** The registry has no soil moisture. A plot that is really wetter or drier than that will get a plan that is a little off at first. Rain in the forecast fills the bucket above the line, and then days pass with no irrigation.
 - **Irrigate when the day would end below half of the bucket.** FAO-56 recommends a crop-specific fraction (tomato 0.40, pepper 0.30). The task asked for half.
 - **A watering day applies what the crop uses that day** (`need_mm` equals `etc_mm`), so the bucket stays where it was. On a dry stretch the plan waters every day with a few mm, which suits drip. FAO-56's own rule refills the whole depletion (Ii = Dr). With a half-full bucket that is 30 to 60 mm in one run, which is 7 to 36 hours on these emitters.
-- **Crops:** tomato and bell pepper only, with the Kc, stage lengths and root depth in `crops.py`. A plot with another crop gets 422.
+- **Crops:** the Kc, stage lengths and root depth come from the registry, one crop at a time. Tomato and bell pepper start with FAO-56 values. A farmer can add another crop and supplies its numbers. The planner trusts them if they pass the range checks, so a wrong Kc gives a wrong plan.
 - **After the season ends** (day number past the sum of the four stages) the Kc stays at its end value. The seed plots were planted months ago, so today they are in this case.
 - Rain counts in full. There is no stress factor, no drip efficiency loss and no correction of Kc for the wetted fraction.
 - Stage lengths are the Mediterranean rows of FAO-56 Table 11. The book says to use local data.
@@ -111,7 +111,7 @@ Read these before trusting a number. Each is explained in the skill and can be c
 
 - `main.py`: the route, validation and error handling.
 - `engine.py`: the calculation. No network, no clock.
-- `crops.py`: the crop numbers, with their FAO-56 sources.
+- `crops.py`: the crop type and the two rules (irrigate below half, start at half).
 - `clients.py`: the calls to registry-service and weather-service, and the checks of their answers.
 - `config.py`: settings, read with pydantic-settings.
 - `docs/research/fao56.md`: the research notes.

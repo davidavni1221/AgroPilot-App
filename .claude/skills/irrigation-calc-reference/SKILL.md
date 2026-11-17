@@ -5,7 +5,7 @@ description: The formulas, units and agronomy choices behind the AgroPilot daily
 
 # Irrigation calculation reference
 
-The plan is the engine's output and nothing else: no AI model computes or adjusts an irrigation number. The engine is `services/planner-service/engine.py` (pure functions) and the crop numbers are in `crops.py`. The sources are in `services/planner-service/docs/research/fao56.md` (FAO-56, with chapter, table and equation numbers). Read that file before changing a number here. It also lists what could not be read, so check those against the printed book.
+The plan is the engine's output and nothing else: no AI model computes or adjusts an irrigation number. The engine is `services/planner-service/engine.py` (pure functions) and the crop numbers come from the registry (`GET /v1/crops/{id}`). The two irrigation rules are in `crops.py`. The sources are in `services/planner-service/docs/research/fao56.md` (FAO-56, with chapter, table and equation numbers). Read that file before changing a number here. It also lists what could not be read, so check those against the printed book.
 
 ## Units
 
@@ -19,7 +19,7 @@ The plan is the engine's output and nothing else: no AI model computes or adjust
 2. **Kc** (single crop coefficient, FAO-56 ch. 6, Eq. 66). Constant `kc_ini` up to `l_ini`. Then a straight line to `kc_mid` over `l_dev` days. Constant `kc_mid` over `l_mid` days. Then a straight line to `kc_end` over `l_late` days. After the season, hold `kc_end`.
    `kc = kc_prev + (day_number - days_before_stage) / stage_length × (kc_next - kc_prev)`
 3. **Crop use.** `etc_mm = kc × et0_mm` (Eq. 56).
-4. **Bucket size.** `capacity_mm = available_water_mm_per_m × root_depth_m` (Eq. 82). The root depth is in `crops.py` because the registry does not store it.
+4. **Bucket size.** `capacity_mm = available_water_mm_per_m × root_depth_m` (Eq. 82). The root depth comes from the crop record in the registry.
 5. **Water bucket, one day** (`water_day`). Rain and irrigation come early in the morning, then the crop uses `etc_mm`.
    - `level = min(capacity, level_start + rain_mm)`. Rain above the top is lost.
    - If `level - etc_mm < 0.5 × capacity`, irrigate: `need_mm = etc_mm` (replace what the crop uses) and `bucket_end_mm = level`.
@@ -29,7 +29,7 @@ The plan is the engine's output and nothing else: no AI model computes or adjust
 6. **Drip run time.** One emitter serves `row_spacing_m × emitter_spacing_m` m², so
    `run_minutes = need_mm × row_spacing_m × emitter_spacing_m / flow_lph × 60`. The plot area cancels out.
 
-## Choices the book leaves open (change them in `crops.py` / `engine.py`, and in this file)
+## Choices the book leaves open (change them in `crops.py` / `engine.py`, or for tomato and bell pepper in the registry seeds, and in this file)
 
 - Today starts with the bucket **at the irrigation line, half of its capacity** (`START_LEVEL` in `crops.py`). The registry has no soil moisture.
 - **Irrigate below half** of the bucket. FAO-56 says to use p per crop (tomato 0.40, pepper 0.30, Table 22). `p = 0.5` is only "commonly used". The task asked for half.

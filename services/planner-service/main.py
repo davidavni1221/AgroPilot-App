@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import engine
+from crops import CropParams
 from clients import PlotNotFound, RegistryClient, UpstreamUnavailable, WeatherClient
 from config import get_settings
 
@@ -116,7 +117,7 @@ async def get_plan(
     data = await registry.plot_data(id)
     forecast = await weather.forecast(data.plot.lat, data.plot.lon, days)
     capacity, plan_days = engine.plan(
-        crop_id=data.plot.crop_id,
+        crop=CropParams(**data.crop.model_dump(exclude={"id"})),
         planting_date=data.plot.planting_date,
         soil_mm_per_m=data.soil.available_water_mm_per_m,
         area_m2=data.plot.area_m2,

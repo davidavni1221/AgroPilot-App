@@ -49,6 +49,18 @@ class Emitter(BaseModel):
     flow_lph: float = Field(gt=0)
 
 
+class Crop(BaseModel):
+    id: str
+    kc_ini: float = Field(gt=0, allow_inf_nan=False)
+    kc_mid: float = Field(gt=0, allow_inf_nan=False)
+    kc_end: float = Field(gt=0, allow_inf_nan=False)
+    l_ini: int = Field(ge=1)
+    l_dev: int = Field(ge=1)
+    l_mid: int = Field(ge=1)
+    l_late: int = Field(ge=1)
+    root_depth_m: float = Field(gt=0, allow_inf_nan=False)
+
+
 # --- What we read from weather-service ---
 class ForecastDay(BaseModel):
     date: date
@@ -65,6 +77,7 @@ class PlotData(BaseModel):
     plot: Plot
     soil: Soil
     emitter: Emitter
+    crop: Crop
 
 
 async def _get(http: httpx.AsyncClient, service: str, url: str, params: dict | None = None) -> httpx.Response:
@@ -94,14 +107,16 @@ class RegistryClient:
         if response.status_code == 404:
             raise PlotNotFound()
         plot = _parse(REGISTRY, Plot, response)
-        soil_response, emitter_response = await asyncio.gather(
+        soil_response, emitter_response, crop_response = await asyncio.gather(
             _get(self._http, REGISTRY, f"/v1/soils/{quote(plot.soil_id, safe='')}"),
             _get(self._http, REGISTRY, f"/v1/emitters/{quote(plot.emitter_id, safe='')}"),
+            _get(self._http, REGISTRY, f"/v1/crops/{quote(plot.crop_id, safe='')}"),
         )
         return PlotData(
             plot=plot,
             soil=_parse(REGISTRY, Soil, soil_response),
             emitter=_parse(REGISTRY, Emitter, emitter_response),
+            crop=_parse(REGISTRY, Crop, crop_response),
         )
 
 

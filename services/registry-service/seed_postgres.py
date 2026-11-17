@@ -8,7 +8,11 @@ from sqlalchemy import create_engine, insert
 import database
 from tables import crops, emitters, farms, metadata, plots, soils
 
-# id, name, kc_ini, kc_mid, kc_end, l_ini, l_dev, l_mid, l_late, root_depth_m (FAO-56)
+# id, name, kc_ini, kc_mid, kc_end, l_ini, l_dev, l_mid, l_late, root_depth_m (FAO-56, see planner-service/docs/research/fao56.md)
+# Tomato: Kc from Table 12 (kc_ini is the Solanum group value), lengths from Table 11 (Mediterranean, April/May).
+#   CHOICE: kc_end 0.80 is the middle of the printed range 0.70-0.90. Root depth 0.7 m is the small end of Table 22 (0.7-1.5 m).
+# Bell pepper: Kc from Table 12, lengths from Table 11 (Europe and Mediterranean, April/June, total 125).
+#   CHOICE: Table 11 prints l_ini as "25/30"; 30 adds up to the printed total (30+35+40+20 = 125). Root depth 0.5 m is the small end of Table 22 (0.5-1.0 m).
 CROPS = [
     ("tomato", "Tomato", 0.6, 1.15, 0.80, 30, 40, 45, 30, 0.7),
     ("bell-pepper", "Bell pepper", 0.6, 1.05, 0.90, 30, 35, 40, 20, 0.5),

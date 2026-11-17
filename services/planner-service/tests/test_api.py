@@ -5,10 +5,12 @@ from fastapi.testclient import TestClient
 from clients import RegistryClient, WeatherClient
 from main import app, get_registry, get_weather
 
+BELL_PEPPER = {"id": "bell-pepper", "name": "Bell pepper", "kc_ini": 0.6, "kc_mid": 1.05, "kc_end": 0.9,
+               "l_ini": 30, "l_dev": 35, "l_mid": 40, "l_late": 20, "root_depth_m": 0.5}
 PLOT = {"id": "p1", "farm_id": "f", "name": "North", "area_m2": 400, "crop_id": "bell-pepper", "planting_date": "2026-06-01",
         "soil_id": "sand", "row_spacing_m": 1.2, "emitter_spacing_m": 0.3, "emitter_id": "e2", "lat": 31.25, "lon": 34.79}
 ROUTES = {"/v1/plots/p1": PLOT, "/v1/soils/sand": {"id": "sand", "name": "Sand", "available_water_mm_per_m": 83},
-          "/v1/emitters/e2": {"id": "e2", "name": "E", "flow_lph": 2.0}, "/v1/crops/bell-pepper": {"id": "bell-pepper", "name": "Bell pepper"}}
+          "/v1/emitters/e2": {"id": "e2", "name": "E", "flow_lph": 2.0}, "/v1/crops/bell-pepper": BELL_PEPPER}
 
 
 def forecast_body(stale=False, days=7):
@@ -121,16 +123,32 @@ def test_registry_down_is_503_naming_registry_and_weather_is_not_called():
     assert "weather" not in calls
 
 
-def test_plot_with_unsupported_crop_is_422():
-    routes = {**ROUTES, "/v1/plots/p1": {**PLOT, "crop_id": "banana"}, "/v1/crops/banana": {"id": "banana", "name": "Banana"}}
+def test_a_crop_added_by_a_farmer_gets_a_plan_from_its_own_numbers():
+    # Mid stage from season day 46 to 85 and the first forecast day is day 81: Kc 1.2, ET0 6 -> ETc 7.2 mm.
+    # Sand 83 mm/m x 1.0 m root depth = 83 mm; the line is 41.5 mm and day 1 starts there, so it irrigates the 7.2 mm.
+    corn = {"id": "sweet-corn", "name": "Sweet corn", "kc_ini": 0.3, "kc_mid": 1.2, "kc_end": 0.6,
+            "l_ini": 20, "l_dev": 25, "l_mid": 40, "l_late": 30, "root_depth_m": 1.0}
+    routes = {**ROUTES, "/v1/plots/p1": {**PLOT, "crop_id": "sweet-corn"}, "/v1/crops/sweet-corn": corn}
+
+    def registry(request):
+        answer = routes.get(request.url.path)
+        return httpx.Response(404) if answer is None else httpx.Response(200, json=answer)
+
+    body = make_client(registry=registry).get("/v1/plots/p1/plan").json()
+    assert body["crop_id"] == "sweet-corn" and body["bucket_capacity_mm"] == 83.0
+    assert body["days"][0]["kc"] == 1.2 and body["days"][0]["need_mm"] == 7.2
+
+
+def test_a_plot_whose_crop_is_missing_in_the_registry_is_503_naming_the_registry():
+    routes = {k: v for k, v in ROUTES.items() if k != "/v1/crops/bell-pepper"}
 
     def registry(request):
         answer = routes.get(request.url.path)
         return httpx.Response(404) if answer is None else httpx.Response(200, json=answer)
 
     response = make_client(registry=registry).get("/v1/plots/p1/plan")
-    assert response.status_code == 422 and response.json()["code"] == "VALIDATION"
-    assert "banana" in response.json()["detail"]
+    assert response.status_code == 503 and response.json()["code"] == "UPSTREAM_UNAVAILABLE"
+    assert "registry-service" in response.json()["detail"]
 
 
 def test_health_and_unknown_route():

@@ -7,6 +7,8 @@ PLOT = {"id": "p1", "farm_id": "f", "name": "North", "area_m2": 1000, "crop_id":
         "soil_id": "loam", "row_spacing_m": 1.5, "emitter_spacing_m": 0.4, "emitter_id": "dripnet-pc-1.0", "lat": 31.25, "lon": 34.79}
 SOIL = {"id": "loam", "name": "Loam", "available_water_mm_per_m": 175}
 EMITTER = {"id": "dripnet-pc-1.0", "name": "DripNet PC", "flow_lph": 1.0}
+CROP = {"id": "tomato", "name": "Tomato", "kc_ini": 0.6, "kc_mid": 1.15, "kc_end": 0.8,
+        "l_ini": 30, "l_dev": 40, "l_mid": 45, "l_late": 30, "root_depth_m": 0.7}
 FORECAST = {"lat": 31.25, "lon": 34.79, "source": "open-meteo", "fetched_at": "2026-11-12T06:00:00Z", "stale": False,
             "days": [{"date": f"2026-11-{12 + i}", "et0_mm": 3.0, "rain_mm": 0.0} for i in range(3)]}
 
@@ -16,7 +18,8 @@ def http(handler):
 
 
 def registry_handler(overrides=None):
-    answers = {"/v1/plots/p1": PLOT, "/v1/soils/loam": SOIL, "/v1/emitters/dripnet-pc-1.0": EMITTER}
+    answers = {"/v1/plots/p1": PLOT, "/v1/soils/loam": SOIL, "/v1/emitters/dripnet-pc-1.0": EMITTER,
+               "/v1/crops/tomato": CROP}
     answers.update(overrides or {})
 
     def handler(request):
@@ -31,6 +34,7 @@ def registry_handler(overrides=None):
 async def test_registry_returns_plot_soil_emitter_and_crop():
     data = await RegistryClient(http(registry_handler())).plot_data("p1")
     assert data.plot.area_m2 == 1000 and data.soil.available_water_mm_per_m == 175 and data.emitter.flow_lph == 1.0
+    assert data.crop.kc_mid == 1.15 and data.crop.l_late == 30 and data.crop.root_depth_m == 0.7
 
 
 async def test_unknown_plot_is_plot_not_found():
@@ -50,6 +54,13 @@ async def test_unknown_plot_is_plot_not_found():
         {"/v1/emitters/dripnet-pc-1.0": {**EMITTER, "flow_lph": 0}},  # would be a division by zero
         {"/v1/soils/loam": {**SOIL, "available_water_mm_per_m": 0}},
         {"/v1/plots/p1": {**PLOT, "row_spacing_m": 0}},
+        {"/v1/crops/tomato": httpx.Response(500)},
+        {"/v1/crops/tomato": None},  # a plot whose crop is missing is broken data, not a reason to guess
+        {"/v1/crops/tomato": {"id": "tomato"}},
+        {"/v1/crops/tomato": {**CROP, "kc_mid": 0}},
+        {"/v1/crops/tomato": {**CROP, "l_ini": 0}},
+        {"/v1/crops/tomato": {**CROP, "l_dev": 1.5}},
+        {"/v1/crops/tomato": {**CROP, "root_depth_m": 0}},
     ],
 )
 async def test_registry_problems_name_the_registry(overrides):

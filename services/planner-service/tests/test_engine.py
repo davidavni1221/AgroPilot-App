@@ -6,11 +6,12 @@ from datetime import date, timedelta
 
 import pytest
 
-from crops import CROPS
+from crops import CropParams
 from engine import ForecastDay, PlanError, kc_for_day, plan, run_minutes, water_day
 
-TOMATO = CROPS["tomato"]  # 30 / 40 / 45 / 30 days, Kc 0.6 / 1.15 / 0.80
-PEPPER = CROPS["bell-pepper"]  # 30 / 35 / 40 / 20 days, Kc 0.6 / 1.05 / 0.90
+# The numbers the registry holds for these two crops (FAO-56), written out here so the checks do not depend on it.
+TOMATO = CropParams(kc_ini=0.6, kc_mid=1.15, kc_end=0.80, l_ini=30, l_dev=40, l_mid=45, l_late=30, root_depth_m=0.7)
+PEPPER = CropParams(kc_ini=0.6, kc_mid=1.05, kc_end=0.90, l_ini=30, l_dev=35, l_mid=40, l_late=20, root_depth_m=0.5)
 
 
 def approx(value):
@@ -74,7 +75,7 @@ def test_kc_not_planted_yet():
 def test_pepper_on_sand_in_mid_season_with_rain():
     start = date(2026, 6, 1) + timedelta(days=80)  # season day 81: inside the mid stage (days 66-105)
     rain = (0, 0, 10, 0, 0, 0, 0)
-    capacity, days = plan("bell-pepper", date(2026, 6, 1), 83, 400, 1.2, 0.3, 2.0, week(start, et0=6.0, rain=rain))
+    capacity, days = plan(PEPPER, date(2026, 6, 1), 83, 400, 1.2, 0.3, 2.0, week(start, et0=6.0, rain=rain))
     assert capacity == approx(41.5)
     assert [d.kc for d in days] == [approx(1.05)] * 7
     assert [d.etc_mm for d in days] == [approx(6.3)] * 7
@@ -100,7 +101,7 @@ def approx_list(values):
 def test_tomato_in_development_with_rain():
     start = date(2026, 9, 1)
     planted = start - timedelta(days=49)
-    capacity, days = plan("tomato", planted, 175, 1000, 1.5, 0.4, 1.0, week(start, et0=4.0, rain=(0, 0, 20, 0, 0, 0, 0)))
+    capacity, days = plan(TOMATO, planted, 175, 1000, 1.5, 0.4, 1.0, week(start, et0=4.0, rain=(0, 0, 20, 0, 0, 0, 0)))
     assert capacity == approx(122.5)
     assert [d.kc for d in days] == approx_list([0.875, 0.88875, 0.9025, 0.91625, 0.93, 0.94375, 0.9575])
     assert [d.etc_mm for d in days] == approx_list([3.5, 3.555, 3.61, 3.665, 3.72, 3.775, 3.83])
@@ -116,16 +117,11 @@ def test_run_minutes_does_not_depend_on_the_plot_area():
     assert run_minutes(5.75, 1.5, 0.4, 1.0) == approx(207)
 
 
-def test_unknown_crop_cannot_be_planned():
-    with pytest.raises(PlanError):
-        plan("banana", date(2026, 1, 1), 175, 100, 1.5, 0.4, 1.0, week(date(2026, 9, 1), 4.0))
-
-
 def test_planting_after_the_forecast_start_cannot_be_planned():
     with pytest.raises(PlanError):
-        plan("tomato", date(2026, 9, 5), 175, 100, 1.5, 0.4, 1.0, week(date(2026, 9, 1), 4.0))
+        plan(TOMATO, date(2026, 9, 5), 175, 100, 1.5, 0.4, 1.0, week(date(2026, 9, 1), 4.0))
 
 
 def test_same_input_same_output():
-    args = ("tomato", date(2026, 3, 1), 175, 1000, 1.5, 0.4, 1.0, week(date(2026, 11, 16), 3.0))
+    args = (TOMATO, date(2026, 3, 1), 175, 1000, 1.5, 0.4, 1.0, week(date(2026, 11, 16), 3.0))
     assert plan(*args) == plan(*args)

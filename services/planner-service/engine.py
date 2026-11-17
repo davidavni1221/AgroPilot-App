@@ -6,7 +6,7 @@ are in the irrigation-calc-reference skill and docs/research/fao56.md.
 from dataclasses import dataclass
 from datetime import date
 
-from crops import CROPS, IRRIGATE_BELOW, START_LEVEL, CropParams
+from crops import IRRIGATE_BELOW, START_LEVEL, CropParams
 
 
 class PlanError(Exception):
@@ -76,7 +76,7 @@ def run_minutes(need_mm: float, row_spacing_m: float, emitter_spacing_m: float, 
 
 
 def plan(
-    crop_id: str,
+    crop: CropParams,
     planting_date: date,
     soil_mm_per_m: float,
     area_m2: float,
@@ -86,9 +86,6 @@ def plan(
     forecast: list[ForecastDay],
 ) -> tuple[float, list[DayPlan]]:
     """Returns (bucket capacity in mm, one DayPlan per forecast day, in order)."""
-    crop = CROPS.get(crop_id)
-    if crop is None:
-        raise PlanError(f"crop {crop_id!r} has no irrigation parameters")
     capacity = soil_mm_per_m * crop.root_depth_m  # TAW, FAO-56 Eq. 82
     level = START_LEVEL * capacity  # CHOICE: today starts at the irrigation line (see crops.py)
 
