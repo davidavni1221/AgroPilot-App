@@ -27,7 +27,7 @@ Start registry-service (8000), weather-service (8001) and planner-service (8002)
 
 ## Pages
 
-- `/`: every farm with its plots. Each plot links to `/plots/{id}`.
+- `/`: every farm with its plots. Each plot card shows today's answer (it asks the planner, one card at a time, so the page appears first) and links to `/plots/{id}`. The buttons to add a farm, a crop or a plot are at the bottom of the page.
 - `/plots/{id}`: today's recommendation first, then the next 7 days. A ring shows how full the soil is, a bar chart shows the minutes of watering per day, and a table has the numbers.
 - `/farms/new`: add a farm (a name).
 - `/crops/new`: add a crop. The grower enters the FAO-56 numbers (Kc at three stages, four stage lengths, root depth). ET0 is never entered: the weather service gets it from the plot's location. For a crop we already hold, such as Tomato or Bell pepper, the typed numbers are ignored and the stored ones are used. The match is by name (capitals and spaces do not matter), so "cherry tomato" counts as a new crop.

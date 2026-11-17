@@ -28,7 +28,7 @@ export function Field({ id, label, hint, children }: { id: string; label: string
 export function SubmitButton({ children }: { children: React.ReactNode }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending} className="h-12 px-6 text-base font-bold">
+    <Button type="submit" disabled={pending} className="h-12 w-full rounded-xl px-8 text-base font-bold sm:w-auto">
       {pending ? "Saving..." : children}
     </Button>
   );
