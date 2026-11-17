@@ -31,3 +31,7 @@ CROPS: dict[str, CropParams] = {
 
 # Irrigate when the bucket would fall below this share of its capacity. The task's rule; FAO-56 calls p = 0.5 "commonly used".
 IRRIGATE_BELOW = 0.5
+
+# CHOICE: the bucket holds this share of its capacity at the start of today. The registry has no soil moisture, so this is
+# an assumption. Starting at the irrigation line means today already gets what the crop uses.
+START_LEVEL = 0.5

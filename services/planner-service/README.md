@@ -34,36 +34,36 @@ registry-service (port 8000) and weather-service (port 8001) must be running for
       "rain_mm": 0.0,
       "kc": 1.05,
       "etc_mm": 6.3,
-      "need_mm": 0.0,
-      "litres": 0.0,
-      "run_minutes": 0.0,
-      "bucket_end_mm": 35.2,
+      "need_mm": 6.3,
+      "litres": 2520.0,
+      "run_minutes": 68.0,
+      "bucket_end_mm": 20.75,
       "stale": false
     },
     {
-      "date": "2026-08-23",
+      "date": "2026-08-22",
       "et0_mm": 6.0,
-      "rain_mm": 0.0,
+      "rain_mm": 10.0,
       "kc": 1.05,
       "etc_mm": 6.3,
-      "need_mm": 18.9,
-      "litres": 7560.0,
-      "run_minutes": 204.1,
-      "bucket_end_mm": 35.2,
+      "need_mm": 0.0,
+      "litres": 0.0,
+      "run_minutes": 0.0,
+      "bucket_end_mm": 24.45,
       "stale": false
     }
   ]
 }
 ```
 
-(Two of the seven days are shown. This is the pepper-on-sand case from the skill: 400 m², rows 1.2 m, emitters 0.3 m apart, 2 L/h.)
+(Two of the seven days are shown: a watering day, and the day 10 mm of rain arrived. This is the pepper-on-sand case from the skill: 400 m², rows 1.2 m, emitters 0.3 m apart, 2 L/h.)
 
 | Field | Meaning |
 |---|---|
 | `et0_mm`, `rain_mm` | From the forecast, unchanged |
 | `kc` | Crop coefficient for that day of the crop's season |
 | `etc_mm` | Water the crop uses that day: `kc × et0_mm` |
-| `need_mm` | Irrigation depth to apply that day, mm over the plot. 0 means no irrigation |
+| `need_mm` | Irrigation depth to apply that day, mm over the plot: what the crop uses that day. 0 means no irrigation |
 | `litres` | `need_mm × area_m2` |
 | `run_minutes` | How long to run the drip system. 0 on a day with no irrigation. The day stays in the list |
 | `bucket_end_mm` | Water in the root zone at the end of the day |
@@ -90,8 +90,9 @@ A stale forecast still gives a plan, with `stale: true` on every day. A missing,
 
 Read these before trusting a number. Each is explained in the skill and can be changed in `crops.py` or `engine.py`.
 
-- **The bucket is full at the start of today.** The registry has no soil moisture. A plot that was not watered for a long time would really need water earlier than the plan says.
+- **Today starts with the soil at the irrigation line, half of the bucket.** The registry has no soil moisture. A plot that is really wetter or drier than that will get a plan that is a little off at first. Rain in the forecast fills the bucket above the line, and then days pass with no irrigation.
 - **Irrigate when the day would end below half of the bucket.** FAO-56 recommends a crop-specific fraction (tomato 0.40, pepper 0.30). The task asked for half.
+- **A watering day applies what the crop uses that day** (`need_mm` equals `etc_mm`), so the bucket stays where it was. On a dry stretch the plan waters every day with a few mm, which suits drip. FAO-56's own rule refills the whole depletion (Ii = Dr). With a half-full bucket that is 30 to 60 mm in one run, which is 7 to 36 hours on these emitters.
 - **Crops:** tomato and bell pepper only, with the Kc, stage lengths and root depth in `crops.py`. A plot with another crop gets 422.
 - **After the season ends** (day number past the sum of the four stages) the Kc stays at its end value. The seed plots were planted months ago, so today they are in this case.
 - Rain counts in full. There is no stress factor, no drip efficiency loss and no correction of Kc for the wetted fraction.

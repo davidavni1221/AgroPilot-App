@@ -22,16 +22,18 @@ The plan is the engine's output and nothing else: no AI model computes or adjust
 4. **Bucket size.** `capacity_mm = available_water_mm_per_m × root_depth_m` (Eq. 82). The root depth is in `crops.py` because the registry does not store it.
 5. **Water bucket, one day** (`water_day`). Rain and irrigation come early in the morning, then the crop uses `etc_mm`.
    - `level = min(capacity, level_start + rain_mm)`. Rain above the top is lost.
-   - If `level - etc_mm < 0.5 × capacity`, irrigate: `need_mm = capacity - level` and the bucket is refilled to the top (the book's `Ii = Dr`).
-   - `bucket_end_mm = level - etc_mm`.
+   - If `level - etc_mm < 0.5 × capacity`, irrigate: `need_mm = etc_mm` (replace what the crop uses) and `bucket_end_mm = level`.
+   - Otherwise `need_mm = 0` and `bucket_end_mm = level - etc_mm`.
    - Exactly half is not below half, so no irrigation.
+   - Today starts with `level_start = 0.5 × capacity`.
 6. **Drip run time.** One emitter serves `row_spacing_m × emitter_spacing_m` m², so
    `run_minutes = need_mm × row_spacing_m × emitter_spacing_m / flow_lph × 60`. The plot area cancels out.
 
 ## Choices the book leaves open (change them in `crops.py` / `engine.py`, and in this file)
 
-- The bucket is **full at the start of today**. The registry has no soil moisture.
+- Today starts with the bucket **at the irrigation line, half of its capacity** (`START_LEVEL` in `crops.py`). The registry has no soil moisture.
 - **Irrigate below half** of the bucket. FAO-56 says to use p per crop (tomato 0.40, pepper 0.30, Table 22). `p = 0.5` is only "commonly used". The task asked for half.
+- **A watering day applies what the crop uses that day**, not a refill to the top. FAO-56's rule is `Ii = Dr` (refill the depletion). From half a bucket that is 30 to 60 mm per run, 7 to 36 hours of drip, which no grower would run in one go. Table 10 lists microirrigation under high-frequency application, so small daily amounts fit.
 - Root depth is the small end of Table 22: tomato 0.7 m, pepper 0.5 m.
 - Tomato `kc_end` 0.80, the middle of the printed range 0.70–0.90.
 - Pepper `l_ini` 30 days (Table 11 prints "25/30"; 30 matches the printed total 125).
@@ -43,11 +45,11 @@ The plan is the engine's output and nothing else: no AI model computes or adjust
 
 **Case 1, Kc along the tomato season** (30 / 40 / 45 / 30 days, Kc 0.6 / 1.15 / 0.80). Day 50: `0.6 + (50-30)/40 × (1.15-0.6) = 0.875`. Day 100: `1.15`. Day 130: `1.15 + (130-115)/30 × (0.80-1.15) = 0.975`. Day 200: `0.80`.
 
-**Case 2, pepper on sand, mid-season, irrigation on days 4 and 7.** Sand 83 mm/m × 0.5 m = 41.5 mm, half = 20.75. Mid Kc 1.05, ET0 6, so ETc 6.3. Days end at 35.2, 28.9, 22.6. Day 4 would end at 16.3, below 20.75, so the morning level 22.6 is refilled with 41.5 - 22.6 = **18.9 mm**. For 400 m², rows 1.2 m, emitters 0.3 m apart, 2 L/h: 18.9 × 400 = **7560 L** and `18.9 × 1.2 × 0.3 / 2 × 60 = 204.12 min`. Check: 400 / 0.36 = 1111.1 emitters × 2 L/h = 2222.2 L/h, and 7560 / 2222.2 × 60 = 204.12.
+**Case 2, pepper on sand, mid-season, 10 mm of rain on day 3.** Sand 83 mm/m × 0.5 m = 41.5 mm. The line is 20.75 mm and today starts there. Mid Kc 1.05, ET0 6, so ETc 6.3. Days 1 and 2: the day would end at 14.45, below the line, so irrigate **6.3 mm** and the day ends at 20.75. Day 3: rain lifts the level to 30.75, and 30.75 - 6.3 = 24.45 is above the line, so no irrigation. Days 4 to 7: 24.45 - 6.3 = 18.15 is below the line, so irrigate 6.3 mm again, ending at 24.45. For 400 m², rows 1.2 m, emitters 0.3 m apart, 2 L/h: 6.3 × 400 = **2520 L** and `6.3 × 1.2 × 0.3 / 2 × 60 = 68.04 min`. Check: 400 / 0.36 = 1111.1 emitters × 2 L/h = 2222.2 L/h, and 2520 / 2222.2 × 60 = 68.04.
 
-**Case 3, tomato in development on loam, 20 mm rain on day 3.** Loam 175 × 0.7 = 122.5 mm. Day 50 on day 1, ET0 4: Kc `0.6 + (day-30) × 0.01375` = 0.875 … 0.9575, ETc = 3.5, 3.555, 3.61, 3.665, 3.72, 3.775, 3.83 (sum 25.655). End of day 2: 122.5 - 3.5 - 3.555 = 115.445. Day 3: rain fills the bucket to 122.5 (the extra is lost), ends at 122.5 - 3.61 = 118.89. Day 7: 118.89 - 3.665 - 3.72 - 3.775 - 3.83 = **103.9 mm**. No irrigation.
+**Case 3, tomato in development on loam, 20 mm rain on day 3.** Loam 175 × 0.7 = 122.5 mm, line 61.25 mm, today starts there. Day 50 on day 1, ET0 4: Kc `0.6 + (day-30) × 0.01375` = 0.875 … 0.9575, ETc = 3.5, 3.555, 3.61, 3.665, 3.72, 3.775, 3.83. Days 1 and 2: irrigate 3.5 and 3.555 mm (day 1: 3500 L on 1000 m², and `3.5 × 1.5 × 0.4 / 1 × 60 = 126 min`). Day 3: 61.25 + 20 = 81.25, minus 3.61 = 77.64, above the line, no irrigation. Days 4 to 7: 73.975, 70.255, 66.48 and **62.65 mm**, all above 61.25, so no irrigation.
 
-Also the task's own example: a 70 mm bucket losing 7 mm a day ends days 1–5 at 63, 56, 49, 42, 35. Day 6 would end at 28, so it irrigates 35 mm.
+Also the task's own example: a 70 mm bucket losing 7 mm a day ends days 1–5 at 63, 56, 49, 42, 35. Day 6 would end at 28, below 35, so it irrigates 7 mm and ends at 35.
 
 ## Tolerance
 

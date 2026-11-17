@@ -6,7 +6,7 @@ are in the irrigation-calc-reference skill and docs/research/fao56.md.
 from dataclasses import dataclass
 from datetime import date
 
-from crops import CROPS, IRRIGATE_BELOW, CropParams
+from crops import CROPS, IRRIGATE_BELOW, START_LEVEL, CropParams
 
 
 class PlanError(Exception):
@@ -58,15 +58,14 @@ def water_day(level_mm: float, capacity_mm: float, etc_mm: float, rain_mm: float
 
     Rain and irrigation come early in the morning, then the crop uses etc_mm (FAO-56 Annex 8).
     Rain above the top of the bucket is lost (Eq. 88). If the day would end below the threshold,
-    the bucket is refilled to the top: the amount equals the morning's depletion (Ii = Dr, ch. 8).
+    CHOICE: irrigate what the crop uses that day, so the bucket stays where it was. This is frequent,
+    small irrigation (FAO-56 Table 10 lists microirrigation under high frequency). The book's own
+    rule refills the whole depletion (Ii = Dr), which on drip means many hours in one run.
     """
     level = min(capacity_mm, level_mm + rain_mm)
     if level - etc_mm < IRRIGATE_BELOW * capacity_mm:
-        irrigation = capacity_mm - level
-        level = capacity_mm
-    else:
-        irrigation = 0.0
-    return irrigation, level - etc_mm
+        return etc_mm, level
+    return 0.0, level - etc_mm
 
 
 def run_minutes(need_mm: float, row_spacing_m: float, emitter_spacing_m: float, emitter_flow_lph: float) -> float:
@@ -91,7 +90,7 @@ def plan(
     if crop is None:
         raise PlanError(f"crop {crop_id!r} has no irrigation parameters")
     capacity = soil_mm_per_m * crop.root_depth_m  # TAW, FAO-56 Eq. 82
-    level = capacity  # CHOICE: the bucket is full at the start of today (Eq. 87, "near field capacity")
+    level = START_LEVEL * capacity  # CHOICE: today starts at the irrigation line (see crops.py)
 
     days = []
     for day in forecast:

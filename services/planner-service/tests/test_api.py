@@ -49,9 +49,11 @@ def test_plan_for_a_plot():
     assert body["plot_id"] == "p1" and body["crop_id"] == "bell-pepper" and body["stale"] is False
     assert body["bucket_capacity_mm"] == 41.5
     assert len(body["days"]) == 7
-    assert body["days"][0] == {"date": "2026-08-20", "et0_mm": 6.0, "rain_mm": 0.0, "kc": 1.05, "etc_mm": 6.3, "need_mm": 0.0,
-                               "litres": 0.0, "run_minutes": 0.0, "bucket_end_mm": 35.2, "stale": False}
-    assert body["days"][3]["need_mm"] == 18.9 and body["days"][3]["litres"] == 7560.0 and body["days"][3]["run_minutes"] == 204.1
+    # The bucket starts at the half line (20.75 mm), so today already waters what the crop uses: 6.3 mm.
+    # 6.3 mm on 400 m2 is 2520 L; 6.3 x 1.2 x 0.3 / 2 x 60 = 68.04 minutes.
+    assert body["days"][0] == {"date": "2026-08-20", "et0_mm": 6.0, "rain_mm": 0.0, "kc": 1.05, "etc_mm": 6.3, "need_mm": 6.3,
+                               "litres": 2520.0, "run_minutes": 68.0, "bucket_end_mm": 20.75, "stale": False}
+    assert all(d["run_minutes"] == 68.0 for d in body["days"])  # no rain: the same amount every day
 
 
 def test_days_defaults_to_seven_and_limits_the_plan():
@@ -81,7 +83,7 @@ def test_stale_forecast_still_gives_a_plan_with_every_day_stale():
 
     body = make_client(weather=weather).get("/v1/plots/p1/plan").json()
     assert body["stale"] is True and all(d["stale"] is True for d in body["days"])
-    assert body["days"][3]["run_minutes"] == 204.1  # the numbers are the same, only marked
+    assert body["days"][0]["run_minutes"] == 68.0  # the numbers are the same, only marked
 
 
 @pytest.mark.parametrize(
