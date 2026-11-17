@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import database
+from config import Settings
 from main import app
 from seed_postgres import seed
 
@@ -22,6 +23,12 @@ def require_test_database_url() -> str:
     if urlsplit(url).path != "/registry_test":
         pytest.fail("TEST_DATABASE_URL must point to the registry_test database (seeding drops tables)")
     return url
+
+
+@pytest.fixture(autouse=True)
+def ignore_env_file(monkeypatch):
+    """A developer's .env (DATABASE_URL for the real database) must never reach the tests."""
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
 
 
 @pytest.fixture

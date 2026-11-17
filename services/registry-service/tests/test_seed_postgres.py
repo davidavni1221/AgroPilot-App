@@ -58,7 +58,11 @@ def test_ids_sort_bytewise(url):
     ids = ["a-b", "a_b", "B", "a", "A1", "a1"]
     with psycopg.connect(url) as conn:
         for i in ids:
-            conn.execute("INSERT INTO crops (id, name) VALUES (%s, 'x')", (i,))
+            conn.execute(
+                "INSERT INTO crops (id, name, kc_ini, kc_mid, kc_end, l_ini, l_dev, l_mid, l_late, root_depth_m)"
+                " VALUES (%s, 'x', 0.5, 1, 0.5, 1, 1, 1, 1, 0.5)",
+                (i,),
+            )
         got = [r[0] for r in conn.execute("SELECT id FROM crops WHERE name = 'x' ORDER BY id").fetchall()]
         conn.rollback()
     assert got == sorted(ids)

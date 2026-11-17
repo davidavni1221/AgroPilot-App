@@ -35,6 +35,9 @@ def test_sqlite_connection_returns_dict_rows(db_path, monkeypatch):
     db = next(gen)
     try:
         row = db.execute(select(crops).where(crops.c.id == "tomato")).mappings().first()
-        assert dict(row) == {"id": "tomato", "name": "Tomato"}
+        assert dict(row) == {
+            "id": "tomato", "name": "Tomato", "kc_ini": 0.6, "kc_mid": 1.15, "kc_end": 0.8,
+            "l_ini": 30, "l_dev": 40, "l_mid": 45, "l_late": 30, "root_depth_m": 0.7,
+        }
     finally:
         gen.close()

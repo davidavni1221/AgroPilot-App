@@ -12,10 +12,19 @@ farms = Table(
     Column("name", Text, nullable=False),
 )
 
+# Kc for the three stages, stage lengths in days and root depth: what the planner needs (FAO-56).
 crops = Table(
     "crops", metadata,
     Column("id", IdType, primary_key=True),
     Column("name", Text, nullable=False),
+    Column("kc_ini", Double, nullable=False),
+    Column("kc_mid", Double, nullable=False),
+    Column("kc_end", Double, nullable=False),
+    Column("l_ini", Integer, nullable=False),
+    Column("l_dev", Integer, nullable=False),
+    Column("l_mid", Integer, nullable=False),
+    Column("l_late", Integer, nullable=False),
+    Column("root_depth_m", Double, nullable=False),
 )
 
 soils = Table(

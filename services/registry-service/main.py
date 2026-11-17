@@ -4,13 +4,14 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from datetime import date
 from typing import Optional
+import re
 import uuid
 
 from sqlalchemy import Connection, delete, func, insert, select, update
 
 from database import get_db, backend, OPERATIONAL_ERRORS, INTEGRITY_ERRORS, DATA_ERRORS
 from tables import crops, emitters, farms, plots, soils
-from models import Crop, Soil, Emitter, Farm, FarmCreate, FarmUpdate, Plot, PlotCreate, PlotUpdate
+from models import Crop, CropCreate, Soil, Emitter, Farm, FarmCreate, FarmUpdate, Plot, PlotCreate, PlotUpdate
 
 backend()  # נכשל בעליה אם DATABASE_URL לא תקין
 
@@ -85,6 +86,18 @@ def fetch_all(db: Connection, statement) -> list[dict]:
 
 def exists(db: Connection, table, value) -> bool:
     return db.execute(select(table.c.id).where(table.c.id == value)).first() is not None
+
+@app.post("/v1/crops", response_model=Crop, status_code=201)
+def create_crop(crop_in: CropCreate, db: Connection = Depends(get_db)):
+    # The id is the name as a slug ("Sweet corn" -> "sweet-corn"), like the seeded ids.
+    crop_id = re.sub(r"[^a-z0-9]+", "-", crop_in.name.lower()).strip("-")
+    if not crop_id:
+        raise APIError(422, "VALIDATION", "Unprocessable Entity", "name: must contain a letter or digit (a-z, 0-9)")
+    if exists(db, crops, crop_id):
+        raise APIError(409, "CONFLICT", "Conflict", "A crop with this name already exists")
+    db.execute(insert(crops).values(id=crop_id, **crop_in.model_dump()))
+    db.commit()
+    return fetch_one(db, select(crops).where(crops.c.id == crop_id))
 
 @app.get("/v1/crops", response_model=list[Crop])
 def get_crops(db: Connection = Depends(get_db)):

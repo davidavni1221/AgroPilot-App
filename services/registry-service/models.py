@@ -7,6 +7,25 @@ from datetime import date
 class Crop(BaseModel):
     id: str
     name: str
+    kc_ini: float
+    kc_mid: float
+    kc_end: float
+    l_ini: int
+    l_dev: int
+    l_mid: int
+    l_late: int
+    root_depth_m: float
+
+class CropCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    kc_ini: float = Field(..., gt=0, le=2)
+    kc_mid: float = Field(..., gt=0, le=2)
+    kc_end: float = Field(..., gt=0, le=2)
+    l_ini: int = Field(..., ge=1, le=365)
+    l_dev: int = Field(..., ge=1, le=365)
+    l_mid: int = Field(..., ge=1, le=365)
+    l_late: int = Field(..., ge=1, le=365)
+    root_depth_m: float = Field(..., gt=0, le=3)
 
 class Soil(BaseModel):
     id: str

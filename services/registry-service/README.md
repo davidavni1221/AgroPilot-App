@@ -76,7 +76,15 @@ erDiagram
     farms    { text id PK
                text name }
     crops    { text id PK
-               text name }
+               text name
+               double kc_ini
+               double kc_mid
+               double kc_end
+               int    l_ini
+               int    l_dev
+               int    l_mid
+               int    l_late
+               double root_depth_m }
     soils    { text id PK
                text name
                int  available_water_mm_per_m }
@@ -113,11 +121,14 @@ The tables are defined in `tables.py`. Dates are `YYYY-MM-DD`.
 | GET | `/v1/plots/{id}` | 200 |
 | PATCH | `/v1/plots/{id}` | 200 |
 | DELETE | `/v1/plots/{id}` | 204 |
+| POST | `/v1/crops` | 201 |
 | GET | `/v1/crops`, `/v1/crops/{id}` | 200 |
 | GET | `/v1/soils`, `/v1/soils/{id}` | 200 |
 | GET | `/v1/emitters`, `/v1/emitters/{id}` | 200 |
 
-Catalogue routes are read-only. Any other method on them returns 405.
+Soils and emitters are read-only lists. Crops can also be added with `POST /v1/crops`, because a farmer knows the crop numbers the planner needs. Any other method on a catalogue route returns 405.
+
+A crop is sent with its name and the FAO-56 numbers the planner uses: `kc_ini`, `kc_mid`, `kc_end` (0 to 2), `l_ini`, `l_dev`, `l_mid`, `l_late` (stage lengths in whole days, 1 to 365) and `root_depth_m` (0 to 3). The id is made from the name, so "Sweet corn" becomes `sweet-corn`. A name that gives an id that already exists returns 409 `CONFLICT`. A name with no letter or digit (a-z, 0-9) returns 422 `VALIDATION`. ET0 and rain are not sent. The weather service gets them from the plot's location.
 
 ## Errors
 

@@ -53,15 +53,82 @@ def test_health(client):
     assert response.json() == {"status": "ok"}
 
 
-# --- Catalogues (read only) ---
+# --- Catalogues (soils and emitters are read only; crops can also be added) ---
+
+TOMATO = {
+    "id": "tomato", "name": "Tomato", "kc_ini": 0.6, "kc_mid": 1.15, "kc_end": 0.8,
+    "l_ini": 30, "l_dev": 40, "l_mid": 45, "l_late": 30, "root_depth_m": 0.7,
+}
+BELL_PEPPER = {
+    "id": "bell-pepper", "name": "Bell pepper", "kc_ini": 0.6, "kc_mid": 1.05, "kc_end": 0.9,
+    "l_ini": 30, "l_dev": 35, "l_mid": 40, "l_late": 20, "root_depth_m": 0.5,
+}
+
 
 def test_list_crops(client):
     response = client.get("/v1/crops")
     assert response.status_code == 200
-    assert response.json() == [
-        {"id": "bell-pepper", "name": "Bell pepper"},
-        {"id": "tomato", "name": "Tomato"},
-    ]
+    assert response.json() == [BELL_PEPPER, TOMATO]
+
+
+def test_get_crop(client):
+    response = client.get("/v1/crops/tomato")
+    assert response.status_code == 200
+    assert response.json() == TOMATO
+
+
+def valid_crop(**overrides):
+    payload = {
+        "name": "Sweet corn", "kc_ini": 0.3, "kc_mid": 1.15, "kc_end": 0.6,
+        "l_ini": 20, "l_dev": 25, "l_mid": 40, "l_late": 30, "root_depth_m": 1.0,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_create_crop(client):
+    response = client.post("/v1/crops", json=valid_crop())
+    assert response.status_code == 201
+    assert response.json() == {"id": "sweet-corn", **valid_crop()}
+    assert client.get("/v1/crops/sweet-corn").json()["name"] == "Sweet corn"
+    assert len(client.get("/v1/crops").json()) == 3
+
+
+def test_new_crop_can_be_used_by_a_plot(client):
+    client.post("/v1/crops", json=valid_crop())
+    response = client.post("/v1/plots", json=valid_plot(crop_id="sweet-corn"))
+    assert response.status_code == 201
+
+
+def test_create_crop_duplicate_name_is_409(client):
+    assert_problem(client.post("/v1/crops", json=valid_crop(name="Tomato")), 409, "CONFLICT")
+    assert_problem(client.post("/v1/crops", json=valid_crop(name="  tomato!")), 409, "CONFLICT")
+
+
+def test_create_crop_name_without_letters_is_422(client):
+    assert_problem(client.post("/v1/crops", json=valid_crop(name="!!!")), 422, "VALIDATION")
+
+
+@pytest.mark.parametrize("field", ["name", "kc_ini", "kc_mid", "kc_end", "l_ini", "l_dev", "l_mid", "l_late", "root_depth_m"])
+def test_create_crop_missing_field_is_422(client, field):
+    body = valid_crop()
+    del body[field]
+    assert_problem(client.post("/v1/crops", json=body), 422, "VALIDATION")
+
+
+@pytest.mark.parametrize("field,value", [
+    ("name", ""), ("name", "x" * 101),
+    ("kc_ini", 0), ("kc_mid", -1), ("kc_end", 2.5), ("kc_mid", "high"),
+    ("l_ini", 0), ("l_dev", 366), ("l_mid", 1.5), ("l_late", -3),
+    ("root_depth_m", 0), ("root_depth_m", 3.1),
+])
+def test_create_crop_bad_value_is_422(client, field, value):
+    assert_problem(client.post("/v1/crops", json=valid_crop(**{field: value})), 422, "VALIDATION")
+
+
+def test_failed_create_crop_changes_nothing(client):
+    client.post("/v1/crops", json=valid_crop(kc_mid=0))
+    assert len(client.get("/v1/crops").json()) == 2
 
 
 def test_get_soil(client):
@@ -88,6 +155,11 @@ def test_unknown_catalogue_item_is_404(client):
 def test_catalogue_other_methods_are_405(client, method):
     response = getattr(client, method)("/v1/crops/tomato")
     assert_problem(response, 405, "VALIDATION")
+
+
+@pytest.mark.parametrize("path", ["/v1/soils", "/v1/emitters"])
+def test_soils_and_emitters_cannot_be_added(client, path):
+    assert_problem(client.post(path, json={"name": "x"}), 405, "VALIDATION")
 
 
 def test_unknown_route_is_404_problem(client):
@@ -331,6 +403,18 @@ def test_connection_from_get_db_enforces_foreign_keys(db_path):
 
 
 # --- Database unavailable ---
+
+def test_create_crop_with_missing_database_returns_503(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from main import app
+
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "does-not-exist.db")
+    with TestClient(app) as client:
+        response = client.post("/v1/crops", json=valid_crop())
+    assert_problem(response, 503, "UNAVAILABLE")
+    assert response.headers["retry-after"] == "5"
+
 
 def test_missing_database_returns_503_with_retry_after(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient

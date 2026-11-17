@@ -8,7 +8,11 @@ from sqlalchemy import create_engine, insert
 import database
 from tables import crops, emitters, farms, metadata, plots, soils
 
-CROPS = [("tomato", "Tomato"), ("bell-pepper", "Bell pepper")]
+# id, name, kc_ini, kc_mid, kc_end, l_ini, l_dev, l_mid, l_late, root_depth_m (FAO-56)
+CROPS = [
+    ("tomato", "Tomato", 0.6, 1.15, 0.80, 30, 40, 45, 30, 0.7),
+    ("bell-pepper", "Bell pepper", 0.6, 1.05, 0.90, 30, 35, 40, 20, 0.5),
+]
 SOILS = [("sand", "Sand", 83), ("loam", "Loam", 175), ("clay-loam", "Clay loam", 200)]
 EMITTERS = [
     ("dripnet-pc-0.6", "DripNet PC", 0.6),
@@ -43,7 +47,7 @@ def seed(url: str) -> None:
             metadata.drop_all(conn)
             metadata.create_all(conn)
             for table, columns, rows in [
-                (crops, ["id", "name"], CROPS),
+                (crops, ["id", "name", "kc_ini", "kc_mid", "kc_end", "l_ini", "l_dev", "l_mid", "l_late", "root_depth_m"], CROPS),
                 (soils, ["id", "name", "available_water_mm_per_m"], SOILS),
                 (emitters, ["id", "name", "flow_lph"], EMITTERS),
                 (farms, ["id", "name"], FARMS),
