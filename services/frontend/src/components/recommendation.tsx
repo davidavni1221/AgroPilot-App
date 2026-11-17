@@ -1,4 +1,4 @@
-import { BucketGauge } from "@/components/bucket-gauge";
+import { SoilRing } from "@/components/soil-ring";
 import { cropName, hoursAndMinutes, number, wholeMinutes } from "@/lib/format";
 import type { Plan, Plot } from "@/lib/types";
 
@@ -22,10 +22,10 @@ export function Recommendation({ plan, plot }: { plan: Plan; plot: Plot }) {
           The weather forecast is out of date. This plan uses the last forecast we received.
         </p>
       )}
-      <div className="mt-6">
-        <BucketGauge level={today.bucket_end_mm} capacity={plan.bucket_capacity_mm} large />
-        <p className="mt-2 text-base text-muted-foreground">
-          Soil water at the end of today: {number(today.bucket_end_mm)} of {number(plan.bucket_capacity_mm)} mm.
+      <div className="mt-6 flex items-center gap-4">
+        <SoilRing level={today.bucket_end_mm} capacity={plan.bucket_capacity_mm} />
+        <p className="text-base text-muted-foreground">
+          Estimated soil water at the end of today: {number(today.bucket_end_mm)} of {number(plan.bucket_capacity_mm)} mm.
           Watering starts when it would fall below half.
         </p>
       </div>
