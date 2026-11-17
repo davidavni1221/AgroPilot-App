@@ -1,19 +1,20 @@
 import { BucketGauge } from "@/components/bucket-gauge";
-import { cropName, duration, number } from "@/lib/format";
+import { cropName, hoursAndMinutes, number, wholeMinutes } from "@/lib/format";
 import type { Plan, Plot } from "@/lib/types";
 
 /** Today's answer, first and big. */
 export function Recommendation({ plan, plot }: { plan: Plan; plot: Plot }) {
   const today = plan.days[0];
   const waters = today.run_minutes > 0;
+  const hours = hoursAndMinutes(today.run_minutes);
   return (
     <section aria-labelledby="today">
       <h1 id="today" className={`text-5xl leading-[1.05] font-bold tracking-tight ${waters ? "text-water" : "text-dry"}`}>
-        {waters ? `Water for ${duration(today.run_minutes)}` : "No irrigation today"}
+        {waters ? `Water for ${wholeMinutes(today.run_minutes)} minutes` : "No irrigation today"}
       </h1>
       <p className="mt-3 text-lg">
         {waters
-          ? `${number(today.need_mm)} mm, ${number(today.litres, 0)} litres on ${plot.name}.`
+          ? `${hours ? `${hours}. ` : ""}${number(today.need_mm)} mm, ${number(today.litres, 0)} litres on ${plot.name}.`
           : `${plot.name} has enough water for today.`}
       </p>
       {plan.stale && (

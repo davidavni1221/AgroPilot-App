@@ -23,5 +23,11 @@ export function duration(minutes: number): string {
   return `${whole} minutes (${Math.floor(whole / 60)} h ${whole % 60} min)`;
 }
 
+/** "1 h 55 min" for long runs, so the headline can stay short. Nothing for a run under 90 minutes. */
+export function hoursAndMinutes(minutes: number): string | null {
+  const whole = wholeMinutes(minutes);
+  return whole < 90 ? null : `${Math.floor(whole / 60)} h ${whole % 60} min`;
+}
+
 export const number = (value: number, digits = 1) =>
   new Intl.NumberFormat("en-GB", { maximumFractionDigits: digits }).format(value);
