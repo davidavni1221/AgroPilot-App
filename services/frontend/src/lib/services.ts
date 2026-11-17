@@ -51,7 +51,11 @@ function fail(service: ServiceName, kind: Failure["kind"], detail: string, statu
   return { ok: false, service, kind, detail, status };
 }
 
-async function requestJson<T>(service: ServiceName, path: string, body?: unknown): Promise<Result<T>> {
+async function requestJson<T>(
+  service: ServiceName,
+  path: string,
+  init?: { method: "POST" | "DELETE"; body?: unknown },
+): Promise<Result<T>> {
   const base = process.env[ENV_NAMES[service]];
   if (!base) {
     return fail(service, "config", `${ENV_NAMES[service]} is not set. Copy .env.example to .env.local.`);
@@ -62,14 +66,21 @@ async function requestJson<T>(service: ServiceName, path: string, body?: unknown
     response = await fetch(new URL(path, base), {
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_MS[service]),
-      ...(body === undefined
-        ? {}
-        : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+      ...(init
+        ? {
+            method: init.method,
+            ...(init.body === undefined
+              ? {}
+              : { headers: { "content-type": "application/json" }, body: JSON.stringify(init.body) }),
+          }
+        : {}),
     });
   } catch (error) {
     const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     return timedOut ? fail(service, "timeout", "timeout") : fail(service, "unreachable", "unreachable");
   }
+
+  if (response.status === 204) return { ok: true, data: null as T };
 
   let answer: unknown;
   try {
@@ -97,7 +108,11 @@ export const getJson = <T>(service: ServiceName, path: string): Promise<Result<T
 
 /** POST a JSON body. A 409 or 422 comes back as a "problem" failure whose detail is the service's own sentence. */
 export const postJson = <T>(service: ServiceName, path: string, body: unknown): Promise<Result<T>> =>
-  requestJson<T>(service, path, body);
+  requestJson<T>(service, path, { method: "POST", body });
+
+/** DELETE. Success is a 204 with no body. A 404 means it is already gone; a 409 comes back with the service's own sentence. */
+export const deleteResource = (service: ServiceName, path: string): Promise<Result<null>> =>
+  requestJson<null>(service, path, { method: "DELETE" });
 
 export type ServiceStatus = { service: ServiceName; up: boolean };
 

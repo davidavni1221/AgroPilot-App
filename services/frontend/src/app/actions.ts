@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { cropIdFromName, friendlyDetail } from "@/lib/crops";
 import { type FormState, readValues, toNumber } from "@/lib/form";
 import { type PlaceSearch, searchPlaces } from "@/lib/geocoding";
-import { createCrop, createFarm, createPlot, getCrops } from "@/lib/registry";
+import { createCrop, createFarm, createPlot, deleteFarm, deletePlot, getCrops } from "@/lib/registry";
 import { describeFailure, type Failure } from "@/lib/services";
 
 const sentence = (failure: Failure) => friendlyDetail(describeFailure(failure));
@@ -80,4 +80,19 @@ export async function addPlot(_previous: FormState, formData: FormData): Promise
 
 export async function findPlaces(query: string): Promise<PlaceSearch> {
   return searchPlaces(query);
+}
+
+// A 404 on delete means it is already gone, which is what the farmer wanted.
+export async function removePlot(_previous: FormState, formData: FormData): Promise<FormState> {
+  const values = readValues(formData);
+  const deleted = await deletePlot(values.id ?? "");
+  if (!deleted.ok && deleted.kind !== "not-found") return { error: sentence(deleted), values };
+  redirect("/");
+}
+
+export async function removeFarm(_previous: FormState, formData: FormData): Promise<FormState> {
+  const values = readValues(formData);
+  const deleted = await deleteFarm(values.id ?? "");
+  if (!deleted.ok && deleted.kind !== "not-found") return { error: sentence(deleted), values };
+  redirect("/");
 }

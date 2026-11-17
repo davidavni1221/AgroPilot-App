@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { AddActions } from "@/components/add-actions";
 import { FailureNotice } from "@/components/failure-notice";
 import { PlotToday, PlotTodayFallback } from "@/components/plot-today";
+import { RemoveFarms } from "@/components/remove-farms";
 import { cropName, number } from "@/lib/format";
 import { getFarms, getPlots } from "@/lib/registry";
 
@@ -15,6 +16,9 @@ export default function Home() {
         <Farms />
       </Suspense>
       <AddActions />
+      <Suspense fallback={null}>
+        <RemoveFarms />
+      </Suspense>
     </main>
   );
 }
