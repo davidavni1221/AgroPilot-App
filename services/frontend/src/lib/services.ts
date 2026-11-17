@@ -51,7 +51,7 @@ function fail(service: ServiceName, kind: Failure["kind"], detail: string, statu
   return { ok: false, service, kind, detail, status };
 }
 
-export async function getJson<T>(service: ServiceName, path: string): Promise<Result<T>> {
+async function requestJson<T>(service: ServiceName, path: string, body?: unknown): Promise<Result<T>> {
   const base = process.env[ENV_NAMES[service]];
   if (!base) {
     return fail(service, "config", `${ENV_NAMES[service]} is not set. Copy .env.example to .env.local.`);
@@ -62,15 +62,18 @@ export async function getJson<T>(service: ServiceName, path: string): Promise<Re
     response = await fetch(new URL(path, base), {
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_MS[service]),
+      ...(body === undefined
+        ? {}
+        : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
     });
   } catch (error) {
     const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     return timedOut ? fail(service, "timeout", "timeout") : fail(service, "unreachable", "unreachable");
   }
 
-  let body: unknown;
+  let answer: unknown;
   try {
-    body = await response.json();
+    answer = await response.json();
   } catch {
     return response.ok
       ? fail(service, "invalid", "The answer is not JSON.", response.status)
@@ -79,7 +82,7 @@ export async function getJson<T>(service: ServiceName, path: string): Promise<Re
 
   if (response.status === 404) return fail(service, "not-found", "Not found.", 404);
   if (!response.ok) {
-    const detail = (body as { detail?: unknown })?.detail;
+    const detail = (answer as { detail?: unknown })?.detail;
     return fail(
       service,
       "problem",
@@ -87,8 +90,14 @@ export async function getJson<T>(service: ServiceName, path: string): Promise<Re
       response.status,
     );
   }
-  return { ok: true, data: body as T };
+  return { ok: true, data: answer as T };
 }
+
+export const getJson = <T>(service: ServiceName, path: string): Promise<Result<T>> => requestJson<T>(service, path);
+
+/** POST a JSON body. A 409 or 422 comes back as a "problem" failure whose detail is the service's own sentence. */
+export const postJson = <T>(service: ServiceName, path: string, body: unknown): Promise<Result<T>> =>
+  requestJson<T>(service, path, body);
 
 export type ServiceStatus = { service: ServiceName; up: boolean };
 

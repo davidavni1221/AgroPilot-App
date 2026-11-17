@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { FailureNotice } from "@/components/failure-notice";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cropName, number } from "@/lib/format";
 import { getFarms, getPlots } from "@/lib/registry";
@@ -9,6 +10,17 @@ export default function Home() {
   return (
     <main>
       <h1 className="text-4xl font-bold tracking-tight">Your fields</h1>
+      <nav aria-label="Add" className="mt-4 flex flex-wrap gap-2">
+        {[
+          { href: "/farms/new", label: "Add farm" },
+          { href: "/crops/new", label: "Add crop" },
+          { href: "/plots/new", label: "Add plot" },
+        ].map((item) => (
+          <Link key={item.href} href={item.href} className={`${buttonVariants({ variant: "outline" })} h-11 px-4 text-base font-bold`}>
+            {item.label}
+          </Link>
+        ))}
+      </nav>
       <Suspense fallback={<p className="mt-6 text-lg">Loading farms and plots.</p>}>
         <Farms />
       </Suspense>
@@ -20,7 +32,7 @@ async function Farms() {
   const [farms, plots] = await Promise.all([getFarms(), getPlots()]);
   if (!farms.ok) return <div className="mt-6"><FailureNotice title="The farms are not available" failure={farms} /></div>;
   if (!plots.ok) return <div className="mt-6"><FailureNotice title="The plots are not available" failure={plots} /></div>;
-  if (farms.data.length === 0) return <p className="mt-6 text-lg">There are no farms yet.</p>;
+  if (farms.data.length === 0) return <p className="mt-6 text-lg">There are no farms yet. Add a farm to start.</p>;
 
   return (
     <div className="mt-6 space-y-8">
