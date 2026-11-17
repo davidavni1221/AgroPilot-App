@@ -62,6 +62,43 @@ Without `TEST_DATABASE_URL`, the PostgreSQL tests are skipped and only the SQLit
 
 Known difference: PostgreSQL cannot store or compare the NUL character (`\x00`). Inside an id, path or query value it gives 422 `VALIDATION` on PostgreSQL, where SQLite gives 404, an empty list, or a field-specific 422. It is junk input, and the response is still `application/problem+json`.
 
+## Data model
+
+`plots` is the central table. Each plot has exactly one farm, crop, soil and emitter. One farm, crop, soil or emitter can be used by many plots. A plot name is unique within its farm.
+
+```mermaid
+erDiagram
+    farms    ||--o{ plots : "has"
+    crops    ||--o{ plots : "is grown in"
+    soils    ||--o{ plots : "describes"
+    emitters ||--o{ plots : "waters"
+
+    farms    { text id PK
+               text name }
+    crops    { text id PK
+               text name }
+    soils    { text id PK
+               text name
+               int  available_water_mm_per_m }
+    emitters { text id PK
+               text name
+               double flow_lph }
+    plots    { text id PK
+               text farm_id FK
+               text crop_id FK
+               text soil_id FK
+               text emitter_id FK
+               text name
+               double area_m2
+               text planting_date
+               double row_spacing_m
+               double emitter_spacing_m
+               double lat
+               double lon }
+```
+
+The tables are defined in `tables.py`. Dates are `YYYY-MM-DD`.
+
 ## Endpoints
 
 | Method | Path | Success |
