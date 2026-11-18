@@ -54,7 +54,7 @@ function fail(service: ServiceName, kind: Failure["kind"], detail: string, statu
 async function requestJson<T>(
   service: ServiceName,
   path: string,
-  init?: { method: "POST" | "DELETE"; body?: unknown },
+  init?: { method: "POST" | "PATCH" | "DELETE"; body?: unknown },
 ): Promise<Result<T>> {
   const base = process.env[ENV_NAMES[service]];
   if (!base) {
@@ -109,6 +109,10 @@ export const getJson = <T>(service: ServiceName, path: string): Promise<Result<T
 /** POST a JSON body. A 409 or 422 comes back as a "problem" failure whose detail is the service's own sentence. */
 export const postJson = <T>(service: ServiceName, path: string, body: unknown): Promise<Result<T>> =>
   requestJson<T>(service, path, { method: "POST", body });
+
+/** PATCH a JSON body. A 404 means it is gone; a 409 or 422 comes back as a "problem" with the service's own sentence. */
+export const patchJson = <T>(service: ServiceName, path: string, body: unknown): Promise<Result<T>> =>
+  requestJson<T>(service, path, { method: "PATCH", body });
 
 /** DELETE. Success is a 204 with no body. A 404 means it is already gone; a 409 comes back with the service's own sentence. */
 export const deleteResource = (service: ServiceName, path: string): Promise<Result<null>> =>

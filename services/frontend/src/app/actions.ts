@@ -4,8 +4,9 @@ import { redirect } from "next/navigation";
 import { cropIdFromName, friendlyDetail } from "@/lib/crops";
 import { type FormState, readValues, toNumber } from "@/lib/form";
 import { type PlaceSearch, searchPlaces } from "@/lib/geocoding";
-import { createCrop, createFarm, createPlot, deleteFarm, deletePlot, getCrops } from "@/lib/registry";
+import { createCrop, createFarm, createPlot, deleteFarm, deletePlot, getCrops, updateFarm, updatePlot } from "@/lib/registry";
 import { describeFailure, type Failure } from "@/lib/services";
+import type { PlotChanges } from "@/lib/types";
 
 const sentence = (failure: Failure) => friendlyDetail(describeFailure(failure));
 
@@ -45,37 +46,67 @@ export async function addCrop(_previous: FormState, formData: FormData): Promise
   redirect(`/plots/new?crop=${encodeURIComponent(created.data.id)}`);
 }
 
-export async function addPlot(_previous: FormState, formData: FormData): Promise<FormState> {
-  const values = readValues(formData);
+/** The plot fields the form sends, checked. Add and edit use the same checks; the registry still has the last word. */
+function readPlotFields(values: Record<string, string>): { error: string } | { fields: PlotChanges } {
   const name = (values.name ?? "").trim();
-  if (!name) return { error: "Type the plot name.", values };
-  for (const [key, label] of [["farm_id", "farm"], ["crop_id", "crop"], ["soil_id", "soil"], ["emitter_id", "emitter"]]) {
-    if (!values[key]) return { error: `Choose the ${label}.`, values };
+  if (!name) return { error: "Type the plot name." };
+  for (const [key, label] of [["crop_id", "crop"], ["soil_id", "soil"], ["emitter_id", "emitter"]]) {
+    if (!values[key]) return { error: `Choose the ${label}.` };
   }
-  if (!values.planting_date) return { error: "Choose the planting date.", values };
+  if (!values.planting_date) return { error: "Choose the planting date." };
   const lat = toNumber(values.lat);
   const lon = toNumber(values.lon);
-  if (Number.isNaN(lat) || Number.isNaN(lon)) return { error: "Search for the place and pick it from the list.", values };
+  if (Number.isNaN(lat) || Number.isNaN(lon)) return { error: "Search for the place and pick it from the list." };
   const area = toNumber(values.area_m2);
   const row = toNumber(values.row_spacing_m);
   const emitter = toNumber(values.emitter_spacing_m);
-  if ([area, row, emitter].some(Number.isNaN)) return { error: "Fill in the area and both spacings.", values };
+  if ([area, row, emitter].some(Number.isNaN)) return { error: "Fill in the area and both spacings." };
+  return {
+    fields: {
+      name,
+      area_m2: area,
+      crop_id: values.crop_id,
+      planting_date: values.planting_date,
+      soil_id: values.soil_id,
+      row_spacing_m: row,
+      emitter_spacing_m: emitter,
+      emitter_id: values.emitter_id,
+      lat,
+      lon,
+    },
+  };
+}
 
-  const created = await createPlot({
-    farm_id: values.farm_id,
-    name,
-    area_m2: area,
-    crop_id: values.crop_id,
-    planting_date: values.planting_date,
-    soil_id: values.soil_id,
-    row_spacing_m: row,
-    emitter_spacing_m: emitter,
-    emitter_id: values.emitter_id,
-    lat,
-    lon,
-  });
+export async function addPlot(_previous: FormState, formData: FormData): Promise<FormState> {
+  const values = readValues(formData);
+  if (!values.farm_id) return { error: "Choose the farm.", values };
+  const read = readPlotFields(values);
+  if ("error" in read) return { error: read.error, values };
+
+  const created = await createPlot({ farm_id: values.farm_id, ...read.fields });
   if (!created.ok) return { error: sentence(created), values };
   redirect(`/plots/${encodeURIComponent(created.data.id)}`);
+}
+
+export async function editPlot(_previous: FormState, formData: FormData): Promise<FormState> {
+  const values = readValues(formData);
+  const read = readPlotFields(values);
+  if ("error" in read) return { error: read.error, values };
+
+  const id = values.id ?? "";
+  const changed = await updatePlot(id, read.fields);
+  if (!changed.ok) return { error: sentence(changed), values };
+  redirect(`/admin/plots/${encodeURIComponent(id)}`);
+}
+
+export async function editFarm(_previous: FormState, formData: FormData): Promise<FormState> {
+  const values = readValues(formData);
+  const name = (values.name ?? "").trim();
+  if (!name) return { error: "Type the farm name.", values };
+
+  const changed = await updateFarm(values.id ?? "", name);
+  if (!changed.ok) return { error: sentence(changed), values };
+  redirect("/admin");
 }
 
 export async function findPlaces(query: string): Promise<PlaceSearch> {
@@ -87,12 +118,12 @@ export async function removePlot(_previous: FormState, formData: FormData): Prom
   const values = readValues(formData);
   const deleted = await deletePlot(values.id ?? "");
   if (!deleted.ok && deleted.kind !== "not-found") return { error: sentence(deleted), values };
-  redirect("/");
+  redirect("/admin");
 }
 
 export async function removeFarm(_previous: FormState, formData: FormData): Promise<FormState> {
   const values = readValues(formData);
   const deleted = await deleteFarm(values.id ?? "");
   if (!deleted.ok && deleted.kind !== "not-found") return { error: sentence(deleted), values };
-  redirect("/");
+  redirect("/admin");
 }

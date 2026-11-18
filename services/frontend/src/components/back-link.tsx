@@ -1,9 +1,9 @@
 import Link from "next/link";
 
-export function BackLink() {
+export function BackLink({ href = "/admin", children = "Back to admin" }: { href?: string; children?: React.ReactNode }) {
   return (
-    <Link href="/" className="text-base font-bold underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-      Back to your fields
+    <Link href={href} className="text-base font-bold underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+      {children}
     </Link>
   );
 }

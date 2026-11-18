@@ -39,7 +39,17 @@ export type Plot = {
   name: string;
   area_m2: number;
   crop_id: string;
+  planting_date: string;
+  soil_id: string;
+  row_spacing_m: number;
+  emitter_spacing_m: number;
+  emitter_id: string;
+  lat: number;
+  lon: number;
 };
+
+/** What can be changed on a plot. Its farm cannot. */
+export type PlotChanges = Omit<NewPlot, "farm_id">;
 
 export type PlanDay = {
   date: string;

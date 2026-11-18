@@ -7,12 +7,12 @@ const actions = [
   { href: "/plots/new", title: "Add a plot", text: "Pick the crop and soil, find the place.", Icon: MapPin, main: true },
 ];
 
-/** The ways to add things. They sit at the bottom of the page, after the fields. */
+/** The ways to add things, on the admin page. */
 export function AddActions() {
   return (
-    <section aria-labelledby="add" className="mt-14 border-t border-border pt-8">
+    <section aria-labelledby="add" className="mt-8">
       <h2 id="add" className="text-2xl font-bold">
-        Add to your fields
+        Add
       </h2>
       <p className="mt-1 text-base text-muted-foreground">Start with a farm, then add its plots.</p>
       <ul className="mt-4 grid gap-3 sm:grid-cols-3">

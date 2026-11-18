@@ -2,13 +2,13 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { addPlot } from "@/app/actions";
+import { addPlot, editPlot } from "@/app/actions";
 import { Field, FormError, inputClass, selectClass, SubmitButton } from "@/components/forms/form-parts";
 import { PlacePicker } from "@/components/forms/place-picker";
 import { Input } from "@/components/ui/input";
 import { emptyForm } from "@/lib/form";
 import { number } from "@/lib/format";
-import type { Crop, Emitter, Farm, Soil } from "@/lib/types";
+import type { Crop, Emitter, Farm, Plot, Soil } from "@/lib/types";
 
 type Props = {
   farms: Farm[];
@@ -16,15 +16,32 @@ type Props = {
   soils: Soil[];
   emitters: Emitter[];
   defaults: { farm?: string; crop?: string };
+  plot?: Plot; // given: change this plot (its farm stays), not add one
 };
 
-export function PlotForm({ farms, crops, soils, emitters, defaults }: Props) {
-  const [state, action] = useActionState(addPlot, emptyForm);
-  const v = state.values;
+const asText = (plot: Plot): Record<string, string> => ({
+  farm_id: plot.farm_id,
+  name: plot.name,
+  crop_id: plot.crop_id,
+  planting_date: plot.planting_date,
+  place: "Saved location",
+  lat: String(plot.lat),
+  lon: String(plot.lon),
+  area_m2: String(plot.area_m2),
+  soil_id: plot.soil_id,
+  emitter_id: plot.emitter_id,
+  row_spacing_m: String(plot.row_spacing_m),
+  emitter_spacing_m: String(plot.emitter_spacing_m),
+});
+
+export function PlotForm({ farms, crops, soils, emitters, defaults, plot }: Props) {
+  const [state, action] = useActionState(plot ? editPlot : addPlot, emptyForm);
+  const v = { ...(plot ? asText(plot) : {}), ...state.values };
   return (
     <form action={action} className="space-y-5">
-      <Field id="farm_id" label="Farm">
-        <select id="farm_id" name="farm_id" required defaultValue={v.farm_id ?? defaults.farm ?? ""} className={selectClass}>
+      {plot && <input type="hidden" name="id" value={plot.id} />}
+      <Field id="farm_id" label="Farm" hint={plot ? "A plot cannot move to another farm." : undefined}>
+        <select id="farm_id" name="farm_id" required disabled={!!plot} defaultValue={v.farm_id ?? defaults.farm ?? ""} aria-describedby={plot ? "farm_id-hint" : undefined} className={selectClass}>
           <option value="" disabled>
             Choose a farm
           </option>
@@ -96,7 +113,7 @@ export function PlotForm({ farms, crops, soils, emitters, defaults }: Props) {
         <Input id="emitter_spacing_m" name="emitter_spacing_m" type="number" inputMode="decimal" step="any" min="0" required defaultValue={v.emitter_spacing_m} aria-describedby="emitter_spacing_m-hint" className={inputClass} />
       </Field>
       <FormError message={state.error} />
-      <SubmitButton>Add plot</SubmitButton>
+      <SubmitButton>{plot ? "Save changes" : "Add plot"}</SubmitButton>
     </form>
   );
 }
