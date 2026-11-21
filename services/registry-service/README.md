@@ -172,6 +172,25 @@ The PostgreSQL numbers were measured the same way, through SQLAlchemy, against a
 
 The target is p95 at or below 100 ms.
 
+### With a lot of text
+
+The same method on PostgreSQL, but against a separate, throwaway database filled with long text: 1,002 farms with 2,000-character names, 2,004 plots with 1,000-character names, and 202 crops, 203 soils and 204 emitters with 1,000-character names. This is much heavier than the seed data, which has only a few short names. 0 errors in every row.
+
+| Endpoint | PostgreSQL p95 | Response size |
+|---|---|---|
+| GET /v1/farms | 45.5 ms | 3.5 MB |
+| GET /v1/farms/{id} | 5.2 ms | 3.6 KB |
+| GET /v1/plots | 65.7 ms | 4.0 MB |
+| GET /v1/plots/{id} | 6.0 ms | 2.0 KB |
+| GET /v1/crops | 10.9 ms | 381 KB |
+| GET /v1/crops/{id} | 5.7 ms | 1.9 KB |
+| GET /v1/soils | 9.2 ms | 367 KB |
+| GET /v1/soils/{id} | 5.1 ms | 1.8 KB |
+| GET /v1/emitters | 8.2 ms | 364 KB |
+| GET /v1/emitters/{id} | 6.6 ms | 1.8 KB |
+
+Every route is still under 100 ms. The big lists grow with the response size: the plots list, at 4 MB, is the slowest at 65.7 ms. The service, the client and the database all ran on the same machine, so this does not include a network between them.
+
 ## Layout
 
 - `main.py`: routes, validation rules, and error handling.
