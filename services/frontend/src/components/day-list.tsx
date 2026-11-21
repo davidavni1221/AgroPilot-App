@@ -6,8 +6,8 @@ import type { Plan } from "@/lib/types";
 /** The plan for the week: a chart of the watering, then one table row per day. */
 export function DayList({ plan }: { plan: Plan }) {
   return (
-    <section aria-labelledby={`week-${plan.plot_id}`}>
-      <h2 id={`week-${plan.plot_id}`} className="text-2xl font-bold">
+    <section aria-labelledby={`week-${plan.plot_id}`} className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-4">
+      <h2 id={`week-${plan.plot_id}`} className="text-2xl font-bold lg:col-span-2">
         The next 7 days
       </h2>
       <div className="mt-3 rounded-xl bg-card p-3">
@@ -49,7 +49,7 @@ export function DayList({ plan }: { plan: Plan }) {
           </TableBody>
         </Table>
       </div>
-      <p className="mt-2 text-sm text-muted-foreground">
+      <p className="mt-2 text-sm text-muted-foreground lg:col-span-2">
         Rain is the forecast total for the day. Soil is the estimated water in the soil at the end of the day, out of {number(plan.bucket_capacity_mm)} mm.
       </p>
     </section>
