@@ -8,8 +8,8 @@ export function Recommendation({ plan, plot }: { plan: Plan; plot: Plot }) {
   const waters = today.run_minutes > 0;
   const hours = hoursAndMinutes(today.run_minutes);
   return (
-    <section aria-labelledby="today">
-      <h1 id="today" className={`text-5xl leading-[1.05] font-bold tracking-tight ${waters ? "text-water" : "text-dry"}`}>
+    <section aria-labelledby={`today-${plot.id}`}>
+      <h1 id={`today-${plot.id}`} className={`text-5xl leading-[1.05] font-bold tracking-tight ${waters ? "text-water" : "text-dry"}`}>
         {waters ? `Water for ${wholeMinutes(today.run_minutes)} minutes` : "No irrigation today"}
       </h1>
       <p className="mt-3 text-lg">

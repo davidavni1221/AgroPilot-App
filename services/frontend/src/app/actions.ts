@@ -1,14 +1,20 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { cropIdFromName, friendlyDetail } from "@/lib/crops";
 import { type FormState, readValues, toNumber } from "@/lib/form";
 import { type PlaceSearch, searchPlaces } from "@/lib/geocoding";
-import { createCrop, createFarm, createPlot, deleteFarm, deletePlot, getCrops, updateFarm, updatePlot } from "@/lib/registry";
+import { createCrop, createFarm, createPlot, deleteFarm, deletePlot, getCrops, getPlots, updateFarm, updatePlot } from "@/lib/registry";
 import { describeFailure, type Failure } from "@/lib/services";
 import type { PlotChanges } from "@/lib/types";
 
 const sentence = (failure: Failure) => friendlyDetail(describeFailure(failure));
+
+/** The saved change shows on the page, and the window that asked can close. */
+function saved(extra: Partial<FormState> = {}): FormState {
+  revalidatePath("/");
+  return { values: {}, done: true, ...extra };
+}
 
 export async function addFarm(_previous: FormState, formData: FormData): Promise<FormState> {
   const values = readValues(formData);
@@ -17,7 +23,7 @@ export async function addFarm(_previous: FormState, formData: FormData): Promise
 
   const created = await createFarm(name);
   if (!created.ok) return { error: sentence(created), values };
-  redirect(`/plots/new?farm=${encodeURIComponent(created.data.id)}`);
+  return saved({ done: false, created: { kind: "farm", id: created.data.id } });
 }
 
 const CROP_NUMBERS = ["kc_ini", "kc_mid", "kc_end", "l_ini", "l_dev", "l_mid", "l_late", "root_depth_m"] as const;
@@ -31,7 +37,7 @@ export async function addCrop(_previous: FormState, formData: FormData): Promise
   const known = await getCrops();
   if (!known.ok) return { error: sentence(known), values };
   // A crop we already hold (tomato, bell pepper) keeps its stored numbers. Whatever was typed is ignored.
-  if (known.data.some((crop) => crop.id === id)) redirect(`/plots/new?crop=${encodeURIComponent(id)}&known=1`);
+  if (known.data.some((crop) => crop.id === id)) return saved({ done: false, created: { kind: "crop", id, known: true } });
 
   const numbers = Object.fromEntries(CROP_NUMBERS.map((key) => [key, toNumber(values[key])])) as Record<
     (typeof CROP_NUMBERS)[number],
@@ -43,7 +49,7 @@ export async function addCrop(_previous: FormState, formData: FormData): Promise
 
   const created = await createCrop({ name, ...numbers });
   if (!created.ok) return { error: sentence(created), values };
-  redirect(`/plots/new?crop=${encodeURIComponent(created.data.id)}`);
+  return saved({ done: false, created: { kind: "crop", id: created.data.id } });
 }
 
 /** The plot fields the form sends, checked. Add and edit use the same checks; the registry still has the last word. */
@@ -85,7 +91,7 @@ export async function addPlot(_previous: FormState, formData: FormData): Promise
 
   const created = await createPlot({ farm_id: values.farm_id, ...read.fields });
   if (!created.ok) return { error: sentence(created), values };
-  redirect(`/plots/${encodeURIComponent(created.data.id)}`);
+  return saved();
 }
 
 export async function editPlot(_previous: FormState, formData: FormData): Promise<FormState> {
@@ -96,7 +102,7 @@ export async function editPlot(_previous: FormState, formData: FormData): Promis
   const id = values.id ?? "";
   const changed = await updatePlot(id, read.fields);
   if (!changed.ok) return { error: sentence(changed), values };
-  redirect(`/admin/plots/${encodeURIComponent(id)}`);
+  return saved();
 }
 
 export async function editFarm(_previous: FormState, formData: FormData): Promise<FormState> {
@@ -106,7 +112,7 @@ export async function editFarm(_previous: FormState, formData: FormData): Promis
 
   const changed = await updateFarm(values.id ?? "", name);
   if (!changed.ok) return { error: sentence(changed), values };
-  redirect("/admin");
+  return saved();
 }
 
 export async function findPlaces(query: string): Promise<PlaceSearch> {
@@ -114,16 +120,23 @@ export async function findPlaces(query: string): Promise<PlaceSearch> {
 }
 
 // A 404 on delete means it is already gone, which is what the farmer wanted.
+// A farm with no plots is deleted with its last plot. If that second step fails, the empty farm stays and has its own delete button.
 export async function removePlot(_previous: FormState, formData: FormData): Promise<FormState> {
   const values = readValues(formData);
   const deleted = await deletePlot(values.id ?? "");
   if (!deleted.ok && deleted.kind !== "not-found") return { error: sentence(deleted), values };
-  redirect("/admin");
+
+  const farmId = values.farm_id;
+  if (farmId) {
+    const rest = await getPlots();
+    if (rest.ok && !rest.data.some((plot) => plot.farm_id === farmId)) await deleteFarm(farmId);
+  }
+  return saved();
 }
 
 export async function removeFarm(_previous: FormState, formData: FormData): Promise<FormState> {
   const values = readValues(formData);
   const deleted = await deleteFarm(values.id ?? "");
   if (!deleted.ok && deleted.kind !== "not-found") return { error: sentence(deleted), values };
-  redirect("/admin");
+  return saved();
 }

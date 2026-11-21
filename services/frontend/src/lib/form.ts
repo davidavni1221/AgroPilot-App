@@ -1,5 +1,14 @@
-/** What a form action hands back to its form: an error to show, and what the farmer typed so it is not lost. */
-export type FormState = { error?: string; values: Record<string, string> };
+/**
+ * What a form action hands back to its form: an error to show, and what the farmer typed so it is not lost.
+ * `done` means the change was saved and the window can close. `created` is a farm or crop that was just added, so the
+ * "add" window can go on to the plot form with it already chosen.
+ */
+export type FormState = {
+  error?: string;
+  values: Record<string, string>;
+  done?: boolean;
+  created?: { kind: "farm" | "crop"; id: string; known?: boolean };
+};
 
 export const emptyForm: FormState = { values: {} };
 

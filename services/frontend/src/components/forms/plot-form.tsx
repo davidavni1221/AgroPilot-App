@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
-import Link from "next/link";
+import { useActionState, useEffect } from "react";
 import { addPlot, editPlot } from "@/app/actions";
 import { Field, FormError, inputClass, selectClass, SubmitButton } from "@/components/forms/form-parts";
 import { PlacePicker } from "@/components/forms/place-picker";
@@ -17,6 +16,8 @@ type Props = {
   emitters: Emitter[];
   defaults: { farm?: string; crop?: string };
   plot?: Plot; // given: change this plot (its farm stays), not add one
+  onDone: () => void;
+  onNeedCrop?: () => void; // given: show "Not in the list? Add a crop"
 };
 
 const asText = (plot: Plot): Record<string, string> => ({
@@ -34,8 +35,11 @@ const asText = (plot: Plot): Record<string, string> => ({
   emitter_spacing_m: String(plot.emitter_spacing_m),
 });
 
-export function PlotForm({ farms, crops, soils, emitters, defaults, plot }: Props) {
+export function PlotForm({ farms, crops, soils, emitters, defaults, plot, onDone, onNeedCrop }: Props) {
   const [state, action] = useActionState(plot ? editPlot : addPlot, emptyForm);
+  useEffect(() => {
+    if (state.done) onDone();
+  }, [state, onDone]);
   const v = { ...(plot ? asText(plot) : {}), ...state.values };
   return (
     <form action={action} className="space-y-5">
@@ -66,12 +70,14 @@ export function PlotForm({ farms, crops, soils, emitters, defaults, plot }: Prop
             </option>
           ))}
         </select>
-        <p className="text-sm text-muted-foreground">
-          Not in the list?{" "}
-          <Link href="/crops/new" className="font-bold underline underline-offset-4">
-            Add a crop
-          </Link>
-        </p>
+        {onNeedCrop && (
+          <p className="text-sm text-muted-foreground">
+            Not in the list?{" "}
+            <button type="button" onClick={onNeedCrop} className="font-bold underline underline-offset-4">
+              Add a crop
+            </button>
+          </p>
+        )}
       </Field>
       <Field id="planting_date" label="Planting date">
         <Input id="planting_date" name="planting_date" type="date" required defaultValue={v.planting_date} className={inputClass} />

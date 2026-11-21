@@ -1,6 +1,6 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, LabelList, XAxis, YAxis } from "recharts";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import type { PlanDay } from "@/lib/types";
 
@@ -16,12 +16,15 @@ export function WeekChart({ days }: { days: PlanDay[] }) {
   }));
   return (
     <ChartContainer config={config} className="aspect-auto h-44 w-full" role="img" aria-label="Minutes of watering for each of the next 7 days">
-      <BarChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
+      <BarChart data={data} margin={{ top: 18, right: 4, bottom: 0, left: 0 }}>
         <CartesianGrid vertical={false} />
         <XAxis dataKey="day" tickLine={false} axisLine={false} interval={0} />
         <YAxis width={44} tickMargin={8} tickLine={false} axisLine={false} />
         <ChartTooltip content={<ChartTooltipContent />} />
-        <Bar dataKey="minutes" fill="var(--color-minutes)" radius={4} />
+        <Bar dataKey="minutes" fill="var(--color-minutes)" radius={4}>
+          {/* A phone has no hover, so the minutes are written above the bars. A day with no watering shows nothing. */}
+          <LabelList dataKey="minutes" position="top" className="fill-foreground text-xs font-bold" formatter={(value) => (Number(value) > 0 ? String(value) : "")} />
+        </Bar>
       </BarChart>
     </ChartContainer>
   );

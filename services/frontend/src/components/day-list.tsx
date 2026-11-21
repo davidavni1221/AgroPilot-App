@@ -6,8 +6,8 @@ import type { Plan } from "@/lib/types";
 /** The plan for the week: a chart of the watering, then one table row per day. */
 export function DayList({ plan }: { plan: Plan }) {
   return (
-    <section aria-labelledby="week">
-      <h2 id="week" className="text-2xl font-bold">
+    <section aria-labelledby={`week-${plan.plot_id}`}>
+      <h2 id={`week-${plan.plot_id}`} className="text-2xl font-bold">
         The next 7 days
       </h2>
       <div className="mt-3 rounded-xl bg-card p-3">
@@ -15,13 +15,17 @@ export function DayList({ plan }: { plan: Plan }) {
         <WeekChart days={plan.days} />
       </div>
       <div className="mt-3 rounded-xl bg-card p-1">
-        <Table aria-label="Plan for the next 7 days" className="text-base">
+        <Table aria-label="Plan for the next 7 days" className="text-sm">
           <TableHeader>
             <TableRow>
-              <TableHead>Day</TableHead>
-              <TableHead className="text-end">Water</TableHead>
-              <TableHead className="text-end">Rain</TableHead>
-              <TableHead className="text-end">Soil</TableHead>
+              <TableHead className="px-1.5">Day</TableHead>
+              <TableHead className="px-1.5 text-end">Water</TableHead>
+              <TableHead className="px-1.5 text-end leading-tight">
+                Rain<span className="block text-xs font-normal text-muted-foreground">mm</span>
+              </TableHead>
+              <TableHead className="px-1.5 text-end leading-tight">
+                Soil<span className="block text-xs font-normal text-muted-foreground">mm</span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -29,16 +33,16 @@ export function DayList({ plan }: { plan: Plan }) {
               const waters = day.run_minutes > 0;
               return (
                 <TableRow key={day.date}>
-                  <TableCell className="font-bold">
+                  <TableCell className="px-1.5 font-bold whitespace-normal">
                     {dayLabel(day.date, index)}
                     {day.stale && <span className="block text-sm text-stale">Old forecast</span>}
                   </TableCell>
-                  <TableCell className={`text-end font-bold ${waters ? "text-water" : "text-dry"}`}>
+                  <TableCell className={`px-1.5 text-end font-bold ${waters ? "text-water" : "text-dry"}`}>
                     {waters ? `${wholeMinutes(day.run_minutes)} min` : "None"}
                     {waters && <span className="block text-sm font-normal text-muted-foreground">{number(day.litres, 0)} L</span>}
                   </TableCell>
-                  <TableCell className="text-end">{day.rain_mm > 0 ? `${number(day.rain_mm)} mm` : "-"}</TableCell>
-                  <TableCell className="text-end">{number(day.bucket_end_mm)} mm</TableCell>
+                  <TableCell className="px-1.5 text-end">{day.rain_mm > 0 ? number(day.rain_mm) : "-"}</TableCell>
+                  <TableCell className="px-1.5 text-end">{number(day.bucket_end_mm)}</TableCell>
                 </TableRow>
               );
             })}

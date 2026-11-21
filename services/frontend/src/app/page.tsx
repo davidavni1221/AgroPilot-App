@@ -1,41 +1,51 @@
 import { Suspense } from "react";
 import { FailureNotice } from "@/components/failure-notice";
 import { FieldList } from "@/components/field-list";
-import { number } from "@/lib/format";
-import { getFarms, getPlots } from "@/lib/registry";
-import { SEEDED_PLOT_IDS } from "@/lib/seed";
+import { AddButton } from "@/components/add-button";
+import { ListsProvider } from "@/components/forms/lists";
+import { getCrops, getEmitters, getFarms, getPlots, getSoils } from "@/lib/registry";
 
 export default function Home() {
   return (
     <main>
-      <h1 className="text-4xl font-bold tracking-tight">Your fields</h1>
-      <Suspense fallback={<p className="mt-6 text-lg">Loading farms and plots.</p>}>
+      <Suspense
+        fallback={
+          <>
+            <Title />
+            <p className="mt-6 text-lg">Loading farms and plots.</p>
+          </>
+        }
+      >
         <Farms />
       </Suspense>
     </main>
   );
 }
 
-const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+/** The page title on the left, and on the right whatever goes with it (the Add button). */
+function Title({ children }: { children?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <h1 className="text-4xl font-bold tracking-tight">Your fields</h1>
+      {children}
+    </div>
+  );
+}
 
 async function Farms() {
-  const [allFarms, allPlots] = await Promise.all([getFarms(), getPlots()]);
-  if (!allFarms.ok) return <div className="mt-6"><FailureNotice title="The farms are not available" failure={allFarms} /></div>;
-  if (!allPlots.ok) return <div className="mt-6"><FailureNotice title="The plots are not available" failure={allPlots} /></div>;
+  const [farms, plots, crops, soils, emitters] = await Promise.all([getFarms(), getPlots(), getCrops(), getSoils(), getEmitters()]);
+  if (!farms.ok) return <div><Title /><div className="mt-6"><FailureNotice title="The farms are not available" failure={farms} /></div></div>;
+  if (!plots.ok) return <div><Title /><div className="mt-6"><FailureNotice title="The plots are not available" failure={plots} /></div></div>;
+  if (!crops.ok) return <div><Title /><div className="mt-6"><FailureNotice title="The crops are not available" failure={crops} /></div></div>;
+  if (!soils.ok) return <div><Title /><div className="mt-6"><FailureNotice title="The soils are not available" failure={soils} /></div></div>;
+  if (!emitters.ok) return <div><Title /><div className="mt-6"><FailureNotice title="The emitters are not available" failure={emitters} /></div></div>;
 
-  // The farmer sees what came with the database. What the admin adds by hand is on the admin page only (see lib/seed.ts).
-  const plots = allPlots.data.filter((plot) => SEEDED_PLOT_IDS.has(plot.id));
-  const farmIds = new Set(plots.map((plot) => plot.farm_id));
-  const farms = allFarms.data.filter((farm) => farmIds.has(farm.id));
-  if (farms.length === 0) return <p className="mt-3 text-lg">There are no farms yet. Ask Netafim to set up your farm.</p>;
-
-  const totalArea = plots.reduce((sum, plot) => sum + plot.area_m2, 0);
   return (
-    <>
-      <p className="mt-2 text-lg text-muted-foreground">
-        {count(farms.length, "farm")}, {count(plots.length, "plot")}, {number(totalArea, 0)} m² in all. Each plot shows today&apos;s answer.
-      </p>
-      <FieldList farms={farms} plots={plots} admin={false} />
-    </>
+    <ListsProvider lists={{ farms: farms.data, crops: crops.data, soils: soils.data, emitters: emitters.data }}>
+      <Title>
+        <AddButton />
+      </Title>
+      <FieldList farms={farms.data} plots={plots.data} />
+    </ListsProvider>
   );
 }

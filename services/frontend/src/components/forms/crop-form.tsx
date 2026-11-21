@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { addCrop } from "@/app/actions";
 import { Field, FormError, inputClass, SubmitButton } from "@/components/forms/form-parts";
 import { Input } from "@/components/ui/input";
@@ -17,17 +17,20 @@ const NUMBERS = [
   { id: "root_depth_m", example: "0.7", label: "Root depth, metres", hint: "Table 22. For scheduling, take the small end of the range.", step: "0.01" },
 ];
 
-export function CropForm() {
+export function CropForm({ onCreated }: { onCreated: (id: string, known: boolean) => void }) {
   const [state, action] = useActionState(addCrop, emptyForm);
+  useEffect(() => {
+    if (state.created?.kind === "crop") onCreated(state.created.id, !!state.created.known);
+  }, [state, onCreated]);
   return (
     <form action={action} className="space-y-5">
       <Field id="name" label="Crop name">
         <Input id="name" name="name" placeholder="e.g. Cucumber" required maxLength={100} defaultValue={state.values.name} className={inputClass} />
       </Field>
       <section aria-labelledby="crop-numbers" className="space-y-5 rounded-xl bg-card p-4">
-        <h2 id="crop-numbers" className="text-lg font-bold">
+        <h3 id="crop-numbers" className="text-lg font-bold">
           Numbers for a new crop
-        </h2>
+        </h3>
         <p className="text-base text-muted-foreground">
           Only for a crop we do not know yet. The grey examples are for Cucumber (FAO-56, fresh market). For Tomato and Bell pepper we already have the numbers, so anything typed here is
           ignored.

@@ -23,7 +23,7 @@ export const Table = (props: React.ComponentProps<"table">) => {
 
   return (
     <div
-      className="relative w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2"
+      className="relative w-full overflow-x-auto overflow-y-hidden focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2"
       data-slot="table-container"
       dir={rest.dir}
       tabIndex={tabIndex}

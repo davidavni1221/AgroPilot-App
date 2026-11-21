@@ -1,12 +1,13 @@
 import { CircleCheck, Clock, Droplets } from "lucide-react";
 import { wholeMinutes } from "@/lib/format";
-import { getPlan } from "@/lib/planner";
+import type { Result } from "@/lib/services";
+import type { Plan } from "@/lib/types";
 
 const pill = "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-base font-bold";
 
-/** Today's answer for one plot, as a small pill on its card. It asks the planner, so it can take a few seconds. */
-export async function PlotToday({ plotId }: { plotId: string }) {
-  const plan = await getPlan(plotId);
+/** Today's answer for one plot, as a small pill on its card. The plan is asked from the planner once per card and can take a few seconds. */
+export async function PlotToday({ plan: asked }: { plan: Promise<Result<Plan>> }) {
+  const plan = await asked;
   if (!plan.ok) {
     return (
       <span className={`${pill} bg-stale-bg text-stale`}>
