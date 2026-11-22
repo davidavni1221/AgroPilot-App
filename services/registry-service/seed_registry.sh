@@ -25,8 +25,16 @@ CREATE TABLE farms (
 );
 
 CREATE TABLE crops (
-  id   TEXT PRIMARY KEY,
-  name TEXT NOT NULL
+  id           TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  kc_ini       REAL NOT NULL,
+  kc_mid       REAL NOT NULL,
+  kc_end       REAL NOT NULL,
+  l_ini        INTEGER NOT NULL,
+  l_dev        INTEGER NOT NULL,
+  l_mid        INTEGER NOT NULL,
+  l_late       INTEGER NOT NULL,
+  root_depth_m REAL NOT NULL
 );
 
 CREATE TABLE soils (
@@ -57,9 +65,10 @@ CREATE TABLE plots (
   UNIQUE (farm_id, name)
 );
 
-INSERT INTO crops (id, name) VALUES
-  ('tomato', 'Tomato'),
-  ('bell-pepper', 'Bell pepper');
+-- FAO-56 values. Their sources and the choices made are explained in seed_postgres.py.
+INSERT INTO crops (id, name, kc_ini, kc_mid, kc_end, l_ini, l_dev, l_mid, l_late, root_depth_m) VALUES
+  ('tomato', 'Tomato', 0.6, 1.15, 0.80, 30, 40, 45, 30, 0.7),
+  ('bell-pepper', 'Bell pepper', 0.6, 1.05, 0.90, 30, 35, 40, 20, 0.5);
 
 INSERT INTO soils (id, name, available_water_mm_per_m) VALUES
   ('sand', 'Sand', 83),

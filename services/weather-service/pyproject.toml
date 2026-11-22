@@ -1,0 +1,25 @@
+[project]
+name = "weather-service"
+version = "0.1.0"
+description = "AgroPilot weather service: daily forecast (ET0 and rain) from Open-Meteo."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi~=0.115",
+    "httpx>=0.28.1",
+    "pydantic-settings~=2.6",
+    "uvicorn~=0.32",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
