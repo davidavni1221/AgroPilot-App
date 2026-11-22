@@ -12,7 +12,7 @@ Written 2026-11-16 so work can continue from another computer. Chat history is l
 ## What is already built
 
 - **registry-service** runs on SQLite by default (`registry.db`) and on PostgreSQL when `DATABASE_URL` is set. Existing endpoints behave the same on both.
-- **Tests:** `uv run pytest` from `services/registry-service`. Without PostgreSQL: 108 passed, 102 skipped (checked 2026-11-22).
+- **Tests:** `uv run pytest` from `services/registry-service`. Without PostgreSQL: 108 passed, 102 skipped. With PostgreSQL: 210 passed (checked 2026-11-22).
 - **Skills and rules** in `.claude/`: `registry-api` (API conventions, with evals), `drip-irrigation`, and the rules in `.claude/rules/`.
 - **PostgreSQL design and plan:** `docs/superpowers/specs/2026-11-15-postgres-support-design.md` and `docs/superpowers/plans/2026-11-15-postgres-support.md`.
 - **Decision history:** `docs/judgment-log.md`.
