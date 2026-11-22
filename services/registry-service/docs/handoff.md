@@ -7,12 +7,12 @@ Written 2026-11-16 so work can continue from another computer. Chat history is l
 - `main` is on GitHub and holds everything merged so far: P1 (PR #1), the `registry-api` skill with its evals, and `.claude/settings.json` (enables the Superpowers plugin).
 - `p2` is the working branch for the P2 task. It starts from `main` with the PostgreSQL migration merged in (merge commit `5684f91`).
 - P2 ends with a PR from `p2` into `main`. Read your own diff on GitHub before merging.
-- The P2 task itself has not been started yet.
+- Updated 2026-11-22: P2 is built (weather-service, planner-service, frontend) and its PR #2 (`p2` into `main`) is open. The repository README describes the four services.
 
 ## What is already built
 
 - **registry-service** runs on SQLite by default (`registry.db`) and on PostgreSQL when `DATABASE_URL` is set. Existing endpoints behave the same on both.
-- **Tests:** `uv run pytest` from `services/registry-service`. Without PostgreSQL: 79 passed, 73 skipped. With PostgreSQL: 152 passed.
+- **Tests:** `uv run pytest` from `services/registry-service`. Without PostgreSQL: 108 passed, 102 skipped (checked 2026-11-22).
 - **Skills and rules** in `.claude/`: `registry-api` (API conventions, with evals), `drip-irrigation`, and the rules in `.claude/rules/`.
 - **PostgreSQL design and plan:** `docs/superpowers/specs/2026-11-15-postgres-support-design.md` and `docs/superpowers/plans/2026-11-15-postgres-support.md`.
 - **Decision history:** `docs/judgment-log.md`.
