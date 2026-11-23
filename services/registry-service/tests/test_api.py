@@ -1,11 +1,14 @@
+import json
 import random
 import string
 from datetime import date, timedelta
 
 import pytest
-from sqlalchemy import exc, insert, text
+from sqlalchemy import Connection, exc, insert, text
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import database
+from main import http_error_handler
 from tables import farms
 
 DEMO_FARM = "b7e2c0a0-3c1d-4f0a-9a11-0c5d2e6f1001"  # Demo cooperative: North block, East block
@@ -149,6 +152,21 @@ def test_list_emitters_has_four(client):
 
 def test_unknown_catalogue_item_is_404(client):
     assert_problem(client.get("/v1/crops/potato"), 404, "NOT_FOUND")
+
+
+@pytest.mark.parametrize("path", ["/v1/soils/granite", "/v1/emitters/dripnet-pc-9.9"])
+def test_unknown_soil_or_emitter_is_404(client, path):
+    assert_problem(client.get(path), 404, "NOT_FOUND")
+
+
+def test_other_http_errors_are_problem_json_with_validation_code():
+    """Neither 404 nor 405: the handler's fallback. Called directly, as no route raises such an error."""
+    response = http_error_handler(None, StarletteHTTPException(418, "teapot"))
+    assert response.status_code == 418
+    assert response.media_type == "application/problem+json"
+    assert json.loads(response.body) == {
+        "type": "about:blank", "title": "Error", "status": 418, "detail": "teapot", "code": "VALIDATION",
+    }
 
 
 @pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
@@ -301,6 +319,14 @@ def test_create_plot_unknown_farm_is_422(client):
     assert_problem(client.post("/v1/plots", json=valid_plot(farm_id="nope")), 422, "VALIDATION")
 
 
+def test_create_plot_integrity_error_on_save_is_422(client, monkeypatch):
+    """The checks before saving make this unreachable in practice (a race could cause it), so it is simulated."""
+    def fail(self):
+        raise exc.IntegrityError("INSERT", {}, Exception("foreign key"))
+    monkeypatch.setattr(Connection, "commit", fail)
+    assert_problem(client.post("/v1/plots", json=valid_plot()), 422, "VALIDATION")
+
+
 def test_create_plot_unknown_crop_is_422(client):
     assert_problem(client.post("/v1/plots", json=valid_plot(crop_id="potato")), 422, "VALIDATION")
 
@@ -371,6 +397,11 @@ def test_patch_plot_null_field_is_422(client, field):
 
 def test_patch_plot_unknown_crop_is_422(client):
     assert_problem(client.patch(f"/v1/plots/{NORTH_BLOCK}", json={"crop_id": "potato"}), 422, "VALIDATION")
+
+
+@pytest.mark.parametrize("field, value", [("soil_id", "granite"), ("emitter_id", "dripnet-pc-9.9")])
+def test_patch_plot_unknown_soil_or_emitter_is_422(client, field, value):
+    assert_problem(client.patch(f"/v1/plots/{NORTH_BLOCK}", json={field: value}), 422, "VALIDATION")
 
 
 def test_patch_plot_future_date_is_422(client):
