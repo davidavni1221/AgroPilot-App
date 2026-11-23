@@ -48,6 +48,11 @@ class FarmCreate(BaseModel):
 class FarmUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1)
 
+class FarmSummary(BaseModel):
+    farm_id: UUID
+    plot_count: int
+    total_area_m2: float
+
 # --- Plots ---
 class Plot(BaseModel):
     id: UUID

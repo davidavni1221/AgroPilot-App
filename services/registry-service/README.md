@@ -114,6 +114,7 @@ The tables are defined in `tables.py`. Dates are `YYYY-MM-DD`.
 | POST | `/v1/farms` | 201 |
 | GET | `/v1/farms` | 200 |
 | GET | `/v1/farms/{id}` | 200 |
+| GET | `/v1/farms/{id}/summary` | 200 |
 | PATCH | `/v1/farms/{id}` | 200 |
 | DELETE | `/v1/farms/{id}` | 204 |
 | POST | `/v1/plots` | 201 |
