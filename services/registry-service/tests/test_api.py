@@ -196,6 +196,23 @@ def test_get_unknown_farm_is_404(client):
     assert_problem(client.get("/v1/farms/00000000-0000-0000-0000-000000000000"), 404, "NOT_FOUND")
 
 
+def test_farm_summary_with_plots(client):
+    response = client.get(f"/v1/farms/{DEMO_FARM}/summary")
+    assert response.status_code == 200
+    assert response.json() == {"farm_id": DEMO_FARM, "plot_count": 2, "total_area_m2": 1800}
+
+
+def test_farm_summary_without_plots(client):
+    farm_id = client.post("/v1/farms", json={"name": "Empty farm"}).json()["id"]
+    response = client.get(f"/v1/farms/{farm_id}/summary")
+    assert response.status_code == 200
+    assert response.json() == {"farm_id": farm_id, "plot_count": 0, "total_area_m2": 0}
+
+
+def test_farm_summary_unknown_farm_is_404(client):
+    assert_problem(client.get("/v1/farms/00000000-0000-0000-0000-000000000000/summary"), 404, "NOT_FOUND")
+
+
 def test_patch_farm_name(client):
     response = client.patch(f"/v1/farms/{EAST_FARM}", json={"name": "Renamed"})
     assert response.status_code == 200

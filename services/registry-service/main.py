@@ -11,7 +11,7 @@ from sqlalchemy import Connection, delete, func, insert, select, update
 
 from database import get_db, backend, OPERATIONAL_ERRORS, INTEGRITY_ERRORS, DATA_ERRORS
 from tables import crops, emitters, farms, plots, soils
-from models import Crop, CropCreate, Soil, Emitter, Farm, FarmCreate, FarmUpdate, Plot, PlotCreate, PlotUpdate
+from models import Crop, CropCreate, Soil, Emitter, Farm, FarmCreate, FarmSummary, FarmUpdate, Plot, PlotCreate, PlotUpdate
 
 backend()  # נכשל בעליה אם DATABASE_URL לא תקין
 
@@ -152,6 +152,16 @@ def get_farm(id: str, db: Connection = Depends(get_db)):
     if not row:
         raise APIError(404, "NOT_FOUND", "Not Found", "Farm not found")
     return row
+
+@app.get("/v1/farms/{id}/summary", response_model=FarmSummary)
+def get_farm_summary(id: str, db: Connection = Depends(get_db)):
+    if not exists(db, farms, id):
+        raise APIError(404, "NOT_FOUND", "Not Found", "Farm not found")
+    row = fetch_one(db, select(
+        func.count(plots.c.id).label("plot_count"),
+        func.coalesce(func.sum(plots.c.area_m2), 0).label("total_area_m2"),
+    ).where(plots.c.farm_id == id))
+    return {"farm_id": id, **row}
 
 @app.patch("/v1/farms/{id}", response_model=Farm)
 def update_farm(id: str, farm_in: FarmUpdate, db: Connection = Depends(get_db)):
