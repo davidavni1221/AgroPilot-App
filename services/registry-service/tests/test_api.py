@@ -53,7 +53,7 @@ def assert_problem(response, status, code):
 def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "broken"}
+    assert response.json() == {"status": "ok"}
 
 
 # --- Catalogues (soils and emitters are read only; crops can also be added) ---

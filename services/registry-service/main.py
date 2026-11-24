@@ -75,7 +75,7 @@ for _exc_class in DATA_ERRORS:
 # --- API Endpoints ---
 @app.get("/health")
 def health_check():
-    return {"status": "broken"}
+    return {"status": "ok"}
 
 def fetch_one(db: Connection, statement) -> dict | None:
     row = db.execute(statement).mappings().first()
