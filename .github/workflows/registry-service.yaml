@@ -1,10 +1,9 @@
 name: registry-service
 
 on:
+  # No paths filter on pull requests: test and audit are required checks, and a
+  # required check that never runs blocks the merge forever.
   pull_request:
-    paths:
-      - "services/registry-service/**"
-      - ".github/workflows/registry-service.yaml"
   push:
     branches: [main]
     paths:
