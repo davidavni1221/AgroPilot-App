@@ -31,8 +31,8 @@ Resolved 2026-11-16: the user chose SQLAlchemy (Core). See `docs/superpowers/spe
 Needs git, `uv`, VS Code with Claude Code. Docker only if you want PostgreSQL.
 
 ```bash
-git clone https://github.com/davidavni1221/ArgoPilot-App.git
-cd ArgoPilot-App
+git clone https://github.com/davidavni1221/AgroPilot-App.git
+cd AgroPilot-App
 git switch p2
 cd services/registry-service
 uv sync

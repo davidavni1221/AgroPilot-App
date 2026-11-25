@@ -25,8 +25,8 @@ You need:
 - Node.js, for the frontend
 
 ```bash
-git clone https://github.com/davidavni1221/ArgoPilot-App.git
-cd ArgoPilot-App/services
+git clone https://github.com/davidavni1221/AgroPilot-App.git
+cd AgroPilot-App/services
 ```
 
 Start each service in its own terminal.
