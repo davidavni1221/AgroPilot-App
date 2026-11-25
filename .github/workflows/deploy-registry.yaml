@@ -44,7 +44,8 @@ jobs:
                 -e POSTGRES_DB=registry \
                 -v pgdata:/var/lib/postgresql/data \
                 -p 127.0.0.1:5432:5432 \
-                postgres:17
+                postgres:17 \
+                || { sudo docker rm -f postgres; exit 1; }
             fi
             sudo docker start postgres
             for i in $(seq 1 30); do
