@@ -16,7 +16,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -e
-            cd /home/ubuntu/ArgoPilot-App
+            cd /home/ubuntu/AgroPilot-App
             git fetch origin main
             git reset --hard ${{ github.sha }}
             cd services/registry-service
