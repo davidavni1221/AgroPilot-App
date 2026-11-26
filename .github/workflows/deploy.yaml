@@ -1,0 +1,31 @@
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy the AgroPilot stack
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            APP=/home/ubuntu/AgroPilot-App
+
+            # Clone on the first run, then check out this run's commit.
+            if [ ! -d "$APP/.git" ]; then
+              git clone https://github.com/${{ github.repository }}.git "$APP"
+            fi
+            cd "$APP"
+            git fetch origin main
+            git reset --hard ${{ github.sha }}
+
+            # The rest of the deploy lives in the repo, at this same commit.
+            POSTGRES_PASSWORD='${{ secrets.POSTGRES_PASSWORD }}' bash deploy/deploy.sh
