@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     # Unset or blank means the local SQLite file registry.db.
     database_url: str | None = None
 
+    # Plot photos. Credentials are never set here: boto3 finds them itself
+    # (~/.aws/credentials on a laptop, the instance's IAM role on EC2).
+    aws_s3_bucket: str | None = None
+    aws_region: str | None = None
+
     @field_validator("database_url")
     @classmethod
     def check_database_url(cls, value: str | None) -> str | None:

@@ -1,4 +1,4 @@
-"""Build the registry tables in PostgreSQL. Destructive: drops the five tables first.
+"""Build the registry tables in PostgreSQL. Destructive: drops the six tables first.
 
 Usage, from services/registry-service:
     uv run python seed_postgres.py      # seeds DATABASE_URL
