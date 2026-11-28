@@ -1,3 +1,4 @@
+from fastapi import UploadFile
 from pydantic import BaseModel, Field
 from typing import Optional
 from uuid import UUID
@@ -92,3 +93,12 @@ class PlotUpdate(BaseModel):
     emitter_id: Optional[str] = None
     lat: Optional[float] = Field(None, ge=-90, le=90)
     lon: Optional[float] = Field(None, ge=-180, le=180)
+
+# --- Plot photo ---
+class PlotPhotoUpload(BaseModel):
+    file: UploadFile
+
+class PlotPhoto(BaseModel):
+    plot_id: str
+    key: str
+    content_type: str

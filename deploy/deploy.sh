@@ -42,6 +42,8 @@ done
 # 3. .env files: written from scratch on every run, never appended.
 cat > "$SERVICES/registry-service/.env" <<EOF
 DATABASE_URL=postgresql://registry:$POSTGRES_PASSWORD@127.0.0.1:5432/registry
+AWS_S3_BUCKET=david-agropilot-photos
+AWS_REGION=eu-north-1
 EOF
 
 cat > "$SERVICES/weather-service/.env" <<EOF
@@ -74,6 +76,9 @@ done
 if [ -z "$(sudo docker exec postgres psql -U registry -d registry -tAc "SELECT to_regclass('public.plots')")" ]; then
   (cd "$SERVICES/registry-service" && "$UV" run python seed_postgres.py)
 fi
+# Tables added to tables.py after the first seed. Existing tables and their rows are left alone.
+(cd "$SERVICES/registry-service" && "$UV" run python -c \
+  "import database, tables; from sqlalchemy import create_engine; tables.metadata.create_all(create_engine(database.driver_url(database.database_url())))")
 
 # 5. Frontend: build once per deploy. next start serves this build.
 (cd "$SERVICES/frontend" && npm ci && npm run build)

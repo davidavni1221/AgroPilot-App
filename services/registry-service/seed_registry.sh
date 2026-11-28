@@ -65,6 +65,12 @@ CREATE TABLE plots (
   UNIQUE (farm_id, name)
 );
 
+CREATE TABLE plot_photos (
+  plot_id      TEXT PRIMARY KEY REFERENCES plots(id),
+  key          TEXT NOT NULL,
+  content_type TEXT NOT NULL
+);
+
 -- FAO-56 values. Their sources and the choices made are explained in seed_postgres.py.
 INSERT INTO crops (id, name, kc_ini, kc_mid, kc_end, l_ini, l_dev, l_mid, l_late, root_depth_m) VALUES
   ('tomato', 'Tomato', 0.6, 1.15, 0.80, 30, 40, 45, 30, 0.7),

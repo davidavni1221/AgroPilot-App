@@ -57,6 +57,14 @@ plots = Table(
     Column("lon", Double, nullable=False),
 )
 
+# One photo per plot. The bytes live in S3 under key; this row says where.
+plot_photos = Table(
+    "plot_photos", metadata,
+    Column("plot_id", IdType, ForeignKey("plots.id"), primary_key=True),
+    Column("key", Text, nullable=False),
+    Column("content_type", Text, nullable=False),
+)
+
 # md5(name): a btree entry is capped at ~2.7 KB, so indexing the raw name would limit its length.
 # PostgreSQL only. SQLite gets UNIQUE (farm_id, name) from seed_registry.sh.
 Index("plots_farm_name_key", plots.c.farm_id, func.md5(plots.c.name), unique=True).ddl_if(dialect="postgresql")

@@ -1,29 +1,36 @@
-from fastapi import FastAPI, Depends, Request, Response
+from fastapi import FastAPI, Depends, Form, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from datetime import date
-from typing import Optional
+from typing import Annotated, Optional
+import logging
 import re
 import uuid
 
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+
 from sqlalchemy import Connection, delete, func, insert, select, update
 
+from config import get_settings
 from database import get_db, backend, OPERATIONAL_ERRORS, INTEGRITY_ERRORS, DATA_ERRORS
-from tables import crops, emitters, farms, plots, soils
-from models import Crop, CropCreate, Soil, Emitter, Farm, FarmCreate, FarmSummary, FarmUpdate, Plot, PlotCreate, PlotUpdate
+from tables import crops, emitters, farms, plot_photos, plots, soils
+from models import Crop, CropCreate, Soil, Emitter, Farm, FarmCreate, FarmSummary, FarmUpdate, Plot, PlotCreate, PlotPhoto, PlotPhotoUpload, PlotUpdate
 
 backend()  # נכשל בעליה אם DATABASE_URL לא תקין
 
 app = FastAPI()
+logger = logging.getLogger("registry")
 
 # --- מנגנון שגיאות RFC 9457 ---
 class APIError(Exception):
-    def __init__(self, status_code: int, code: str, title: str, detail: str):
+    def __init__(self, status_code: int, code: str, title: str, detail: str, headers: dict | None = None):
         self.status_code = status_code
         self.code = code
         self.title = title
         self.detail = detail
+        self.headers = headers
 
 # פונקציה אחת שבונה את כל תגובות השגיאה, כדי שהפורמט יהיה זהה בכל מקום
 def problem_response(status_code: int, code: str, title: str, detail: str, headers: dict | None = None) -> JSONResponse:
@@ -42,7 +49,7 @@ def problem_response(status_code: int, code: str, title: str, detail: str, heade
 
 @app.exception_handler(APIError)
 def api_error_handler(request: Request, exc: APIError):
-    return problem_response(exc.status_code, exc.code, exc.title, exc.detail)
+    return problem_response(exc.status_code, exc.code, exc.title, exc.detail, exc.headers)
 
 # שגיאות ש-FastAPI/Starlette מייצרים: נתיב לא קיים (404) או מתודה לא נתמכת (405)
 @app.exception_handler(StarletteHTTPException)
@@ -285,5 +292,76 @@ def delete_plot(id: str, db: Connection = Depends(get_db)):
     if not exists(db, plots, id):
         raise APIError(404, "NOT_FOUND", "Not Found", "Plot not found")
 
+    # The photo row points at the plot, so it goes first. The S3 object stays.
+    db.execute(delete(plot_photos).where(plot_photos.c.plot_id == id))
     db.execute(delete(plots).where(plots.c.id == id))
     db.commit()
+
+# --- Plot photos ---
+PHOTO_CONTENT_TYPES = ("image/jpeg", "image/png", "image/webp")
+PHOTO_MAX_BYTES = 5 * 1024 * 1024
+
+def s3_unavailable(action: str) -> APIError:
+    # Called inside an except block, so the log has the boto3 error and its traceback.
+    logger.exception("S3 %s failed", action)
+    return APIError(503, "UNAVAILABLE", "Service Unavailable", "Photo storage is unavailable", headers={"Retry-After": "5"})
+
+def s3_bucket() -> str:
+    bucket = get_settings().aws_s3_bucket
+    if not bucket:
+        logger.error("AWS_S3_BUCKET is not set")
+        raise APIError(503, "UNAVAILABLE", "Service Unavailable", "Photo storage is unavailable", headers={"Retry-After": "5"})
+    return bucket
+
+def s3_client():
+    # Created per request, never at import. boto3 finds the credentials by itself.
+    return boto3.client("s3", region_name=get_settings().aws_region)
+
+@app.post("/v1/plots/{id}/photo", response_model=PlotPhoto, status_code=201)
+def upload_plot_photo(id: str, body: Annotated[PlotPhotoUpload, Form()], db: Connection = Depends(get_db)):
+    plot = fetch_one(db, select(plots.c.farm_id).where(plots.c.id == id))
+    if not plot:
+        raise APIError(404, "NOT_FOUND", "Not Found", "Plot not found")
+
+    # Every check runs before S3 is called.
+    content_type = body.file.content_type
+    if content_type not in PHOTO_CONTENT_TYPES:
+        raise APIError(422, "VALIDATION", "Unprocessable Entity", "file: content type must be image/jpeg, image/png or image/webp")
+    data = body.file.file.read(PHOTO_MAX_BYTES + 1)
+    if not data:
+        raise APIError(422, "VALIDATION", "Unprocessable Entity", "file: is empty")
+    if len(data) > PHOTO_MAX_BYTES:
+        raise APIError(422, "VALIDATION", "Unprocessable Entity", "file: larger than 5 MB")
+
+    # S3 first: if it fails, the stored key is left as it was.
+    key = f"{plot['farm_id']}/{id}/photo"
+    bucket = s3_bucket()
+    try:
+        s3_client().put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)
+    except (BotoCoreError, ClientError):
+        raise s3_unavailable("upload")
+
+    # A second upload overwrites the photo.
+    values = {"key": key, "content_type": content_type}
+    if db.execute(select(plot_photos.c.plot_id).where(plot_photos.c.plot_id == id)).first():
+        db.execute(update(plot_photos).where(plot_photos.c.plot_id == id).values(**values))
+    else:
+        db.execute(insert(plot_photos).values(plot_id=id, **values))
+    db.commit()
+    return {"plot_id": id, **values}
+
+@app.get("/v1/plots/{id}/photo", response_class=Response)
+def get_plot_photo(id: str, db: Connection = Depends(get_db)):
+    if not exists(db, plots, id):
+        raise APIError(404, "NOT_FOUND", "Not Found", "Plot not found")
+    photo = fetch_one(db, select(plot_photos).where(plot_photos.c.plot_id == id))
+    if not photo:
+        raise APIError(404, "NOT_FOUND", "Not Found", "Plot has no photo")
+
+    bucket = s3_bucket()
+    try:
+        obj = s3_client().get_object(Bucket=bucket, Key=photo["key"])
+        data = obj["Body"].read()
+    except (BotoCoreError, ClientError):
+        raise s3_unavailable("download")
+    return Response(content=data, media_type=photo["content_type"])
